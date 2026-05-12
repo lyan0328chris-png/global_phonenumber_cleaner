@@ -1393,8 +1393,21 @@
 
         let parsed = null;
 
+        // 尝试-1（最高优先级）：指定了默认国家时，用原始纯数字+默认ISO直接解析
+        // 防止 +(55)XXXX 等带区号格式的墨西哥号码被 +55(巴西) 截获
+        if (!parsed && defaultCountryISO) {
+          const rawDigits = String(original).replace(/\D+/g, "");
+          if (rawDigits) {
+            try {
+              const p = parseFn(rawDigits, defaultCountryISO);
+              if (p && p.isValid()) parsed = p;
+            } catch (_) {}
+          }
+        }
+
         // 尝试0：原始数字直接加 + 解析（处理已含国家码但无 + 前缀的情况，如 84354238646）
-        if (!withPlus) {
+        // 仅在未指定默认国家时启用，避免墨西哥城区号55被误判为巴西(+55)等冲突场景
+        if (!parsed && !withPlus && !defaultCountryCode) {
           const rawDigits = String(original).replace(/\D+/g, "");
           if (rawDigits && !rawDigits.startsWith("0")) {
             try {
