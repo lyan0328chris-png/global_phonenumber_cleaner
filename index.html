@@ -253,6 +253,48 @@
   </style>
 </head>
 <body>
+  <!-- 访问密码遮罩 -->
+  <div id="pwOverlay" style="
+    position:fixed;inset:0;z-index:9999;
+    background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);
+    display:flex;align-items:center;justify-content:center;">
+    <div style="
+      background:#fff;border-radius:16px;padding:36px 32px;
+      width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.4);
+      text-align:center;">
+      <div style="font-size:32px;margin-bottom:8px;">🔐</div>
+      <h2 style="margin:0 0 6px;font-size:20px;color:#162033;">访问验证</h2>
+      <p style="margin:0 0 20px;font-size:13px;color:#5a667d;">请输入访问密码</p>
+      <input id="pwInput" type="password" placeholder="输入密码"
+        style="width:100%;padding:11px 14px;border:1.5px solid #d9e1ef;border-radius:10px;
+        font-size:15px;outline:none;box-sizing:border-box;margin-bottom:12px;"
+        onkeydown="if(event.key==='Enter')checkPw()" />
+      <button onclick="checkPw()" style="
+        width:100%;padding:11px;background:#135dff;color:#fff;border:none;
+        border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;">
+        进入
+      </button>
+      <p id="pwErr" style="margin:10px 0 0;font-size:13px;color:#d64045;display:none;">密码错误，请重试</p>
+    </div>
+  </div>
+
+  <script>
+    function checkPw() {
+      const val = document.getElementById('pwInput').value;
+      if (val === 'Chris0512') {
+        document.getElementById('pwOverlay').style.display = 'none';
+        sessionStorage.setItem('pw_ok', '1');
+      } else {
+        document.getElementById('pwErr').style.display = 'block';
+        document.getElementById('pwInput').value = '';
+        document.getElementById('pwInput').focus();
+      }
+    }
+    if (sessionStorage.getItem('pw_ok') === '1') {
+      document.getElementById('pwOverlay').style.display = 'none';
+    }
+  </script>
+
   <div class="app">
     <div class="card" style="padding: 20px 20px 16px;">
       <h1>多国手机号清洗工具</h1>
