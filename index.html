@@ -1355,7 +1355,11 @@
 
         if (s.startsWith("+")) {
           const digits = s.slice(1).replace(/\D+/g, "");
-          return digits ? { str: "+" + digits, withPlus: true } : { str: "", withPlus: false };
+          if (!digits) return { str: "", withPlus: false };
+          // 去除国际格式中多余的 trunk 0：+CC0LOCAL → +CCLOCAL（如 +2540203... → +254203...）
+          // 尝试1/2/3位国家码后是否跟了0，若去0后长度合理则采用
+          const stripped = digits.replace(/^(\d{1,3})0(\d{7,11})$/, (_, cc, local) => cc + local);
+          return { str: "+" + stripped, withPlus: true };
         }
 
         const digits = s.replace(/\D+/g, "");
@@ -1407,7 +1411,11 @@
         const { defaultCountryCode = "", defaultCountryISO = "", typeFilter = "all", outputFormat = "E164" } = opts;
 
         // 单元格含多个号码时，逐一尝试并选最佳（Mobile > Fixed > 其他有效 > 无效）
-        const candidates = String(rawValue ?? "").split(/[\/,;|\n、]/).map(s => s.trim()).filter(Boolean);
+        // 二次拆分：处理空格分隔的多国际号码，如 "+254 753 493 903 +254 722 527 280"
+        const candidates = String(rawValue ?? "")
+          .split(/[\/,;|\n、]/)
+          .flatMap(s => s.trim().split(/\s+(?=\+\d)/))
+          .map(s => s.trim()).filter(Boolean);
         if (candidates.length > 1) {
           let best = null, bestScore = -1;
           for (const c of candidates) {
