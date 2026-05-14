@@ -253,6 +253,48 @@
   </style>
 </head>
 <body>
+  <!-- 访问密码遮罩 -->
+  <div id="pwOverlay" style="
+    position:fixed;inset:0;z-index:9999;
+    background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);
+    display:flex;align-items:center;justify-content:center;">
+    <div style="
+      background:#fff;border-radius:16px;padding:36px 32px;
+      width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.4);
+      text-align:center;">
+      <div style="font-size:32px;margin-bottom:8px;">🔐</div>
+      <h2 style="margin:0 0 6px;font-size:20px;color:#162033;">访问验证</h2>
+      <p style="margin:0 0 20px;font-size:13px;color:#5a667d;">请输入访问密码</p>
+      <input id="pwInput" type="password" placeholder="输入密码"
+        style="width:100%;padding:11px 14px;border:1.5px solid #d9e1ef;border-radius:10px;
+        font-size:15px;outline:none;box-sizing:border-box;margin-bottom:12px;"
+        onkeydown="if(event.key==='Enter')checkPw()" />
+      <button onclick="checkPw()" style="
+        width:100%;padding:11px;background:#135dff;color:#fff;border:none;
+        border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;">
+        进入
+      </button>
+      <p id="pwErr" style="margin:10px 0 0;font-size:13px;color:#d64045;display:none;">密码错误，请重试</p>
+    </div>
+  </div>
+
+  <script>
+    function checkPw() {
+      const val = document.getElementById('pwInput').value;
+      if (val === 'Chris0512') {
+        document.getElementById('pwOverlay').style.display = 'none';
+        sessionStorage.setItem('pw_ok', '1');
+      } else {
+        document.getElementById('pwErr').style.display = 'block';
+        document.getElementById('pwInput').value = '';
+        document.getElementById('pwInput').focus();
+      }
+    }
+    if (sessionStorage.getItem('pw_ok') === '1') {
+      document.getElementById('pwOverlay').style.display = 'none';
+    }
+  </script>
+
   <div class="app">
     <div class="card" style="padding: 20px 20px 16px;">
       <h1>多国手机号清洗工具</h1>
@@ -1313,7 +1355,11 @@
 
         if (s.startsWith("+")) {
           const digits = s.slice(1).replace(/\D+/g, "");
-          return digits ? { str: "+" + digits, withPlus: true } : { str: "", withPlus: false };
+          if (!digits) return { str: "", withPlus: false };
+          // 去除国际格式中多余的 trunk 0：+CC0LOCAL → +CCLOCAL（如 +2540203... → +254203...）
+          // 尝试1/2/3位国家码后是否跟了0，若去0后长度合理则采用
+          const stripped = digits.replace(/^(\d{1,3})0(\d{7,11})$/, (_, cc, local) => cc + local);
+          return { str: "+" + stripped, withPlus: true };
         }
 
         const digits = s.replace(/\D+/g, "");
@@ -1365,7 +1411,11 @@
         const { defaultCountryCode = "", defaultCountryISO = "", typeFilter = "all", outputFormat = "E164" } = opts;
 
         // 单元格含多个号码时，逐一尝试并选最佳（Mobile > Fixed > 其他有效 > 无效）
-        const candidates = String(rawValue ?? "").split(/[\/,;|\n、]/).map(s => s.trim()).filter(Boolean);
+        // 二次拆分：处理空格分隔的多国际号码，如 "+254 753 493 903 +254 722 527 280"
+        const candidates = String(rawValue ?? "")
+          .split(/[\/,;|\n、]/)
+          .flatMap(s => s.trim().split(/\s+(?=\+\d)/))
+          .map(s => s.trim()).filter(Boolean);
         if (candidates.length > 1) {
           let best = null, bestScore = -1;
           for (const c of candidates) {
@@ -1393,8 +1443,21 @@
 
         let parsed = null;
 
+        // 尝试-1（最高优先级）：指定了默认国家时，用原始纯数字+默认ISO直接解析
+        // 防止 +(55)XXXX 等带区号格式的墨西哥号码被 +55(巴西) 截获
+        if (!parsed && defaultCountryISO) {
+          const rawDigits = String(original).replace(/\D+/g, "");
+          if (rawDigits) {
+            try {
+              const p = parseFn(rawDigits, defaultCountryISO);
+              if (p && p.isValid()) parsed = p;
+            } catch (_) {}
+          }
+        }
+
         // 尝试0：原始数字直接加 + 解析（处理已含国家码但无 + 前缀的情况，如 84354238646）
-        if (!withPlus) {
+        // 仅在未指定默认国家时启用，避免墨西哥城区号55被误判为巴西(+55)等冲突场景
+        if (!parsed && !withPlus && !defaultCountryCode) {
           const rawDigits = String(original).replace(/\D+/g, "");
           if (rawDigits && !rawDigits.startsWith("0")) {
             try {
