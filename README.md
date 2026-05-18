@@ -1,6 +1,6 @@
-# 全球电话号码清理器 / Global Phone Number Cleaner
+# 全局电话号码清理器 / Global Phone Number Cleaner
 
-一款无需服务器的前端手机号清洗工具，支持多国号码格式校验、类型识别与批量导出。
+一款纯前端、无需服务器的手机号清洗工具，支持多国号码格式校验、类型识别与批量导出。
 
 🔗 **在线访问**：[https://lyan0328chris-png.github.io/global_phonenumber_cleaner/](https://lyan0328chris-png.github.io/global_phonenumber_cleaner/)
 > 访问需要密码，请联系管理员获取。

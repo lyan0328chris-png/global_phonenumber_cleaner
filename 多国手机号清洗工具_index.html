@@ -1407,15 +1407,84 @@
         return 1;          // isPossible 通过但无类型
       },
 
+      // 从原始单元格值中提取所有电话号码候选（支持文字标签、\+转义、重复号码、0前缀多号等）
+      extractPhoneCandidatesFromRaw(rawStr) {
+        // 步骤1：\+ → + 归一化
+        const s = String(rawStr ?? '').replace(/\\\+/g, '+').trim();
+        if (!s) return [];
+        // 步骤2：常规分隔符 + 空格前国际号码前缀 初步分段
+        const coarse = s
+          .split(/[\/,;|\n、]/)
+          .flatMap(seg => seg.trim().split(/\s+(?=\+\d)/))
+          .map(x => x.trim()).filter(Boolean);
+        const result = [];
+        for (const seg of coarse) result.push(...this._normalizePhoneSegment(seg));
+        return result.length ? result : [s];
+      },
+
+      // 单段文本预处理：剥文字标签 → 括号区号归一 → 重复号码去重 → 0前缀多号拆分
+      _normalizePhoneSegment(seg) {
+        // 剥离字母/中文文字标签，提取含数字的片段
+        const pieces = seg
+          .replace(/[A-Za-z\u4e00-\u9fff]+/g, '\x00')
+          .replace(/[^\d+\s()\-\x00]/g, ' ')
+          .split('\x00')
+          .map(x => x.replace(/\s+/g, ' ').trim())
+          .filter(x => /\d/.test(x));
+        if (!pieces.length) return [seg];
+
+        const result = [];
+        for (let piece of pieces) {
+          // 步骤3：+CC(非零区号) → +CC区号（如 +233(30)8251066 → +233308251066）
+          piece = piece.replace(/(\+\d{1,3})\s*\(([1-9]\d{0,3})\)\s*/g, '$1$2 ').trim();
+          const allDigits = piece.replace(/\D/g, '');
+
+          // 步骤4A：整体偶数对半重复（如 302263023302263023）
+          let handled = false;
+          if (allDigits.length >= 12 && allDigits.length % 2 === 0) {
+            const half = allDigits.length / 2;
+            if (allDigits.slice(0, half) === allDigits.slice(half)) {
+              result.push(piece.startsWith('+') ? '+' + allDigits.slice(0, half) : allDigits.slice(0, half));
+              handled = true;
+            }
+          }
+          // 步骤4B：后缀重复（6~10位尾段出现两次，如 +CC(area)NUMNUM）
+          if (!handled) {
+            for (let dl = 10; dl >= 6; dl--) {
+              if (allDigits.length >= dl * 2 &&
+                  allDigits.slice(-dl) === allDigits.slice(-(dl * 2), -dl)) {
+                result.push(piece.startsWith('+') ? '+' + allDigits.slice(0, -dl) : allDigits.slice(0, -dl));
+                handled = true;
+                break;
+              }
+            }
+          }
+          if (handled) continue;
+
+          // 步骤5：0前缀相邻多号码拆分（累积 ≥9 位后遇到0开头词则切割）
+          const words = piece.split(/\s+/);
+          const groups = [];
+          let cur = '';
+          for (const w of words) {
+            if (!w) continue;
+            if (cur && /^0/.test(w) && cur.replace(/\D/g, '').length >= 9) {
+              groups.push(cur.trim());
+              cur = w;
+            } else {
+              cur = cur ? cur + ' ' + w : w;
+            }
+          }
+          if (cur.trim()) groups.push(cur.trim());
+          result.push(...groups.filter(g => g.replace(/\D/g, '').length >= 6));
+        }
+        return result.filter(Boolean);
+      },
+
       cleanOne(rawValue, opts = {}) {
         const { defaultCountryCode = "", defaultCountryISO = "", typeFilter = "all", outputFormat = "E164" } = opts;
 
         // 单元格含多个号码时，逐一尝试并选最佳（Mobile > Fixed > 其他有效 > 无效）
-        // 二次拆分：处理空格分隔的多国际号码，如 "+254 753 493 903 +254 722 527 280"
-        const candidates = String(rawValue ?? "")
-          .split(/[\/,;|\n、]/)
-          .flatMap(s => s.trim().split(/\s+(?=\+\d)/))
-          .map(s => s.trim()).filter(Boolean);
+        const candidates = this.extractPhoneCandidatesFromRaw(rawValue);
         if (candidates.length > 1) {
           let best = null, bestScore = -1;
           for (const c of candidates) {
