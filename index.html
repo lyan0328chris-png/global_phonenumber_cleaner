@@ -1462,6 +1462,11 @@
           if (handled) continue;
 
           // 步骤5：0前缀相邻多号码拆分（累积 ≥9 位后遇到0开头词则切割）
+          // 已有+国际码前缀的号码不做此拆分：国际格式中末尾含0的子段（如0226/0000/00）是号码自身的组成部分而非第二之号码
+          if (piece.startsWith('+')) {
+            if (allDigits.length >= 6) result.push(piece);
+            continue;
+          }
           const words = piece.split(/\s+/);
           const groups = [];
           let cur = '';
