@@ -1992,6 +1992,7 @@
         const rate = stats.total ? ((stats.valid / stats.total) * 100).toFixed(2) : "0.00";
         this.els.stats.innerHTML = `
           <div class="stat"><div class="label">总行数</div><div class="value">${stats.total.toLocaleString()}</div></div>
+          <div class="stat"><div class="label">号码字段空值</div><div class="value">${(stats.emptyPhones || 0).toLocaleString()}</div></div>
           <div class="stat"><div class="label">有效数量</div><div class="value">${stats.valid.toLocaleString()}</div></div>
           <div class="stat"><div class="label">无效数量</div><div class="value">${stats.invalid.toLocaleString()}</div></div>
           <div class="stat"><div class="label">成功率</div><div class="value">${rate}%</div></div>
@@ -2092,7 +2093,7 @@
         const outputFormat = this.els.outputFormat.value || "E164";
 
         // 内联统计：避免第二次全量遍历
-        let validCount = 0, invalidCount = 0;
+        let validCount = 0, invalidCount = 0, emptyPhoneCount = 0;
         const typeCounts = {};
         const failureBucket = new Map();
         const SAMPLE_N = 10, TOP_N = 5;
@@ -2104,6 +2105,7 @@
           for (let j = i; j < end; j++) {
             const sourceRow = this.state.rows[j];
             const raw = sourceRow[phoneCol];
+            if (String(raw ?? "").trim() === "") emptyPhoneCount++;
             const cleaned = PhoneCleaner.cleanOne(raw, { defaultCountryCode, defaultCountryISO, typeFilter, outputFormat });
 
             exportRows[j] = this.buildExportRow(sourceRow, cleaned);
@@ -2143,6 +2145,7 @@
 
         this.renderStats({
           total,
+          emptyPhones: emptyPhoneCount,
           valid: validCount,
           invalid: invalidCount,
           uniquePhones: dedup.uniqueCount,

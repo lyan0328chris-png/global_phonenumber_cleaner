@@ -1400,6 +1400,35 @@
         }
       },
 
+      fallbackMexicoNumber(rawValue, defaultCountryCode, outputFormat) {
+        const raw = String(rawValue ?? "");
+        const candidates = [];
+        const intlMatches = raw.matchAll(/\+?\s*52[\s\-‐-―()]*1?[\s\-‐-―()]*(\d[\d\s\-‐-―()]{8,}\d)/g);
+        for (const m of intlMatches) {
+          const local = String(m[1] || "").replace(/\D+/g, "");
+          if (local.length === 10) candidates.push(local);
+        }
+        const digits = raw.replace(/\D+/g, "");
+        if (/^521\d{10}$/.test(digits)) candidates.push(digits.slice(3));
+        if (/^52\d{10}$/.test(digits)) candidates.push(digits.slice(2));
+        if (defaultCountryCode === "52" && /^\d{10}$/.test(digits)) candidates.push(digits);
+        const local = candidates.find(x => /^\d{10}$/.test(x));
+        if (!local) return null;
+        const e164 = "52" + local;
+        const formatted = outputFormat === "INTERNATIONAL"
+          ? `52 ${local.slice(0, 3)} ${local.slice(3, 6)} ${local.slice(6)}`
+          : outputFormat === "NATIONAL"
+            ? `${local.slice(0, 3)} ${local.slice(3, 6)} ${local.slice(6)}`
+            : e164;
+        return {
+          "原始号码": rawValue,
+          "清洗后号码": formatted,
+          "状态": "有效(MX)",
+          "检测国家": "MX",
+          "号码类型": "FIXED_LINE_OR_MOBILE"
+        };
+      },
+
       // 对单次清洗结果评分：越高越优先
       _scoreResult(r) {
         if (!String(r["状态"] || "").startsWith("有效")) return 0;
@@ -1430,7 +1459,7 @@
         // 剥离字母/中文文字标签，提取含数字的片段
         const pieces = seg
           .replace(/[A-Za-z\u4e00-\u9fff]+/g, '\x00')
-          .replace(/[^\d+\s()\-\x00]/g, ' ')
+          .replace(/[^\d+\s()\-‐-―\x00]/g, ' ')
           .split('\x00')
           .map(x => x.replace(/\s+/g, ' ').trim())
           .filter(x => /\d/.test(x));
@@ -1562,6 +1591,8 @@
         }
 
         if (!parsed) {
+          const mxFallback = this.fallbackMexicoNumber(original, defaultCountryCode, outputFormat);
+          if (mxFallback) return mxFallback;
           return { ...empty, "状态": "无效-号段不符" };
         }
 
@@ -1961,6 +1992,7 @@
         const rate = stats.total ? ((stats.valid / stats.total) * 100).toFixed(2) : "0.00";
         this.els.stats.innerHTML = `
           <div class="stat"><div class="label">总行数</div><div class="value">${stats.total.toLocaleString()}</div></div>
+          <div class="stat"><div class="label">号码字段空值</div><div class="value">${(stats.emptyPhones || 0).toLocaleString()}</div></div>
           <div class="stat"><div class="label">有效数量</div><div class="value">${stats.valid.toLocaleString()}</div></div>
           <div class="stat"><div class="label">无效数量</div><div class="value">${stats.invalid.toLocaleString()}</div></div>
           <div class="stat"><div class="label">成功率</div><div class="value">${rate}%</div></div>
@@ -2061,7 +2093,7 @@
         const outputFormat = this.els.outputFormat.value || "E164";
 
         // 内联统计：避免第二次全量遍历
-        let validCount = 0, invalidCount = 0;
+        let validCount = 0, invalidCount = 0, emptyPhoneCount = 0;
         const typeCounts = {};
         const failureBucket = new Map();
         const SAMPLE_N = 10, TOP_N = 5;
@@ -2073,6 +2105,7 @@
           for (let j = i; j < end; j++) {
             const sourceRow = this.state.rows[j];
             const raw = sourceRow[phoneCol];
+            if (String(raw ?? "").trim() === "") emptyPhoneCount++;
             const cleaned = PhoneCleaner.cleanOne(raw, { defaultCountryCode, defaultCountryISO, typeFilter, outputFormat });
 
             exportRows[j] = this.buildExportRow(sourceRow, cleaned);
@@ -2112,6 +2145,7 @@
 
         this.renderStats({
           total,
+          emptyPhones: emptyPhoneCount,
           valid: validCount,
           invalid: invalidCount,
           uniquePhones: dedup.uniqueCount,
