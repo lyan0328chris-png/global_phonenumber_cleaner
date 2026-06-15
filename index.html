@@ -1400,6 +1400,35 @@
         }
       },
 
+      fallbackMexicoNumber(rawValue, defaultCountryCode, outputFormat) {
+        const raw = String(rawValue ?? "");
+        const candidates = [];
+        const intlMatches = raw.matchAll(/\+?\s*52[\s\-‐-―()]*1?[\s\-‐-―()]*(\d[\d\s\-‐-―()]{8,}\d)/g);
+        for (const m of intlMatches) {
+          const local = String(m[1] || "").replace(/\D+/g, "");
+          if (local.length === 10) candidates.push(local);
+        }
+        const digits = raw.replace(/\D+/g, "");
+        if (/^521\d{10}$/.test(digits)) candidates.push(digits.slice(3));
+        if (/^52\d{10}$/.test(digits)) candidates.push(digits.slice(2));
+        if (defaultCountryCode === "52" && /^\d{10}$/.test(digits)) candidates.push(digits);
+        const local = candidates.find(x => /^\d{10}$/.test(x));
+        if (!local) return null;
+        const e164 = "52" + local;
+        const formatted = outputFormat === "INTERNATIONAL"
+          ? `52 ${local.slice(0, 3)} ${local.slice(3, 6)} ${local.slice(6)}`
+          : outputFormat === "NATIONAL"
+            ? `${local.slice(0, 3)} ${local.slice(3, 6)} ${local.slice(6)}`
+            : e164;
+        return {
+          "原始号码": rawValue,
+          "清洗后号码": formatted,
+          "状态": "有效(MX)",
+          "检测国家": "MX",
+          "号码类型": "FIXED_LINE_OR_MOBILE"
+        };
+      },
+
       // 对单次清洗结果评分：越高越优先
       _scoreResult(r) {
         if (!String(r["状态"] || "").startsWith("有效")) return 0;
@@ -1430,7 +1459,7 @@
         // 剥离字母/中文文字标签，提取含数字的片段
         const pieces = seg
           .replace(/[A-Za-z\u4e00-\u9fff]+/g, '\x00')
-          .replace(/[^\d+\s()\-\x00]/g, ' ')
+          .replace(/[^\d+\s()\-‐-―\x00]/g, ' ')
           .split('\x00')
           .map(x => x.replace(/\s+/g, ' ').trim())
           .filter(x => /\d/.test(x));
@@ -1562,6 +1591,8 @@
         }
 
         if (!parsed) {
+          const mxFallback = this.fallbackMexicoNumber(original, defaultCountryCode, outputFormat);
+          if (mxFallback) return mxFallback;
           return { ...empty, "状态": "无效-号段不符" };
         }
 
