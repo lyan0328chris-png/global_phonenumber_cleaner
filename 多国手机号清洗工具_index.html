@@ -1356,9 +1356,10 @@
         if (s.startsWith("+")) {
           const digits = s.slice(1).replace(/\D+/g, "");
           if (!digits) return { str: "", withPlus: false };
+          const mxNormalized = digits.replace(/^521(\d{10})$/, "52$1");
           // 去除国际格式中多余的 trunk 0：+CC0LOCAL → +CCLOCAL（如 +2540203... → +254203...）
           // 尝试1/2/3位国家码后是否跟了0，若去0后长度合理则采用
-          const stripped = digits.replace(/^(\d{1,3})0(\d{9,11})$/, (_, cc, local) => cc + local);
+          const stripped = mxNormalized.replace(/^(\d{1,3})0(\d{9,11})$/, (_, cc, local) => cc + local);
           return { str: "+" + stripped, withPlus: true };
         }
 
@@ -1374,6 +1375,8 @@
         // 纯数字：去前导 0，拼默认国家码
         let local = digits;
         if (local.startsWith("0")) local = local.slice(1);
+        if (defaultCountryCode === "52" && /^521\d{10}$/.test(local)) local = local.replace(/^521/, "");
+        if (!defaultCountryCode && /^521\d{10}$/.test(local)) return { str: local.replace(/^521/, "52"), withPlus: false };
 
         if (defaultCountryCode) {
           return { str: defaultCountryCode + local, withPlus: false };
@@ -1462,7 +1465,7 @@
           if (handled) continue;
 
           // 步骤5：0前缀相邻多号码拆分（累积 ≥9 位后遇到0开头词则切割）
-          // 已有+国际码前缀的号码不做此拆分：国际格式中末尾含0的子段（如0226/0000/00）是号码自身的组成部分而非第二个号码
+          // 已有+国际码前缀的号码不做此拆分：国际格式中末尾含0的子段（如0226/0000/00）是号码自身的组成部分而非第二之号码
           if (piece.startsWith('+')) {
             if (allDigits.length >= 6) result.push(piece);
             continue;
