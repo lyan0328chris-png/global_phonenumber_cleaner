@@ -2002,6 +2002,23 @@
         `;
       },
 
+      classifyInvalidReason(rawValue, status, defaultCountryCode) {
+        const raw = String(rawValue ?? "").trim();
+        const digits = raw.replace(/\D+/g, "");
+        if (status === "无效-空号" || !raw) return "空号";
+        if (status !== "无效-号段不符") return status || "无效-未知原因";
+        if (!digits) return "号段不符-无可识别数字";
+        if (digits.length < 6) return "号段不符-位数过短";
+        if (digits.length > 15) return "号段不符-位数过长";
+        if (defaultCountryCode === "52") {
+          if (/^52/.test(digits) && !/^521?\d{10}$/.test(digits)) return "号段不符-墨西哥号码应为52+10位本地号";
+          if (!/^52/.test(digits) && digits.length !== 10) return "号段不符-墨西哥本地号应为10位";
+        }
+        if (/^00\d+/.test(digits) && digits.length < 10) return "号段不符-国际前缀后位数不足";
+        if (/^\d{10,15}$/.test(digits) && !defaultCountryCode && !/^(1|52|55|60|62|84|86|233|234|254|27)/.test(digits)) return "号段不符-国家码未识别";
+        return "号段不符-库未识别该地区号段";
+      },
+
       buildFailureReasonStats(results, topN = 5, sampleN = 10) {
         const total = Array.isArray(results) ? results.length : 0;
         const bucket = new Map();
@@ -2096,6 +2113,7 @@
         let validCount = 0, invalidCount = 0, emptyPhoneCount = 0;
         const typeCounts = {};
         const failureBucket = new Map();
+        let failureStatsInvalidCount = 0;
         const SAMPLE_N = 10, TOP_N = 5;
 
         // 分片处理：避免主线程长时间阻塞
@@ -2120,12 +2138,15 @@
               if (t) typeCounts[t] = (typeCounts[t] || 0) + 1;
             } else {
               invalidCount++;
-              const reason = status || "无效-未知原因";
-              if (!failureBucket.has(reason)) failureBucket.set(reason, { reason, count: 0, samples: [] });
-              const item = failureBucket.get(reason);
-              item.count++;
-              if (item.samples.length < SAMPLE_N) {
-                item.samples.push({ original: String(cleaned["原始号码"] ?? ""), cleaned: String(cleaned["清洗后号码"] ?? "") });
+              if (status !== "无效-空号") {
+                failureStatsInvalidCount++;
+                const reason = this.classifyInvalidReason(cleaned["原始号码"], status, defaultCountryCode);
+                if (!failureBucket.has(reason)) failureBucket.set(reason, { reason, count: 0, samples: [] });
+                const item = failureBucket.get(reason);
+                item.count++;
+                if (item.samples.length < SAMPLE_N) {
+                  item.samples.push({ original: String(cleaned["原始号码"] ?? ""), cleaned: String(cleaned["清洗后号码"] ?? "") });
+                }
               }
             }
 
@@ -2155,8 +2176,8 @@
 
         const topItems = Array.from(failureBucket.values())
           .sort((a, b) => b.count - a.count).slice(0, TOP_N)
-          .map(x => ({ ...x, ratio: invalidCount ? x.count / invalidCount : 0 }));
-        this.renderFailureReasonStats({ invalidTotal: invalidCount, topItems });
+          .map(x => ({ ...x, ratio: failureStatsInvalidCount ? x.count / failureStatsInvalidCount : 0 }));
+        this.renderFailureReasonStats({ invalidTotal: failureStatsInvalidCount, topItems });
 
         this.setProgress(100, "清洗完成（已按清洗后手机号去重），可按模式导出 CSV");
         this.els.exportCsvBtn.disabled = false;
