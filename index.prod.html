@@ -1,0 +1,2644 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>多国手机号清洗工具</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/libphonenumber-js@1.11.13/bundle/libphonenumber-max.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/lyan0328chris-png/global_phonenumber_cleaner@v1.0.0/src/phone-cleaner-core.js"></script>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --panel: #ffffff;
+      --text: #162033;
+      --subtext: #5a667d;
+      --line: #d9e1ef;
+      --primary: #135dff;
+      --primary-soft: #e8efff;
+      --danger: #d64045;
+      --ok: #1f9d68;
+      --warn: #b7791f;
+      --shadow: 0 10px 30px rgba(18, 38, 63, 0.08);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f172a;
+        --panel: #111c34;
+        --text: #e6edff;
+        --subtext: #91a2c4;
+        --line: #2a3a5f;
+        --primary: #6ea8ff;
+        --primary-soft: #1c2e54;
+        --danger: #ff7b8a;
+        --ok: #4fd49a;
+        --warn: #f0b25f;
+        --shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 8% 10%, rgba(19, 93, 255, 0.12), transparent 32%),
+        radial-gradient(circle at 88% 0%, rgba(79, 212, 154, 0.12), transparent 30%),
+        var(--bg);
+    }
+
+    .app {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 24px 18px 36px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .card-body { padding: 16px 18px 18px; }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 28px;
+      letter-spacing: 0.2px;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--subtext);
+      font-size: 14px;
+    }
+
+    .drop-zone {
+      border: 2px dashed var(--line);
+      background: color-mix(in srgb, var(--panel) 75%, var(--primary-soft));
+      border-radius: 12px;
+      text-align: center;
+      padding: 24px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.active {
+      border-color: var(--primary);
+      transform: translateY(-1px);
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    button, select {
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--text);
+      padding: 9px 12px;
+      font-size: 14px;
+    }
+
+    button {
+      cursor: pointer;
+      font-weight: 600;
+      transition: 0.2s;
+    }
+
+    button.primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: white;
+    }
+
+    button.primary:hover { filter: brightness(1.06); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .tips {
+      margin: 8px 0 0;
+      color: var(--subtext);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .progress-wrap {
+      width: 100%;
+      height: 12px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--panel) 65%, var(--line));
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .progress-bar {
+      width: 0;
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), #2cc2ff);
+      transition: width 0.2s;
+    }
+
+    .muted { color: var(--subtext); font-size: 13px; }
+
+    .table-wrap {
+      max-height: 360px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      min-width: 760px;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      padding: 9px 10px;
+      vertical-align: top;
+      word-break: break-all;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: color-mix(in srgb, var(--panel) 85%, var(--primary-soft));
+      z-index: 1;
+    }
+
+    .status-ok { color: var(--ok); font-weight: 700; }
+    .status-bad { color: var(--danger); font-weight: 700; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: color-mix(in srgb, var(--panel) 88%, var(--primary-soft));
+    }
+
+    .stat .label { color: var(--subtext); font-size: 12px; }
+    .stat .value { font-size: 18px; font-weight: 800; margin-top: 3px; }
+
+    .failure-panel {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: color-mix(in srgb, var(--panel) 92%, var(--primary-soft));
+    }
+
+    .failure-panel h4 {
+      margin: 0 0 8px;
+      font-size: 14px;
+    }
+
+    .failure-item {
+      border-top: 1px dashed var(--line);
+      padding: 8px 0;
+    }
+
+    .failure-item:first-of-type { border-top: none; padding-top: 0; }
+
+    .failure-title {
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .failure-meta {
+      color: var(--subtext);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    .failure-samples {
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <!-- 访问密码遮罩 -->
+  <div id="pwOverlay" style="
+    position:fixed;inset:0;z-index:9999;
+    background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);
+    display:flex;align-items:center;justify-content:center;">
+    <div style="
+      background:#fff;border-radius:16px;padding:36px 32px;
+      width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.4);
+      text-align:center;">
+      <div style="font-size:32px;margin-bottom:8px;">🔐</div>
+      <h2 style="margin:0 0 6px;font-size:20px;color:#162033;">访问验证</h2>
+      <p style="margin:0 0 20px;font-size:13px;color:#5a667d;">请输入访问密码</p>
+      <input id="pwInput" type="password" placeholder="输入密码"
+        style="width:100%;padding:11px 14px;border:1.5px solid #d9e1ef;border-radius:10px;
+        font-size:15px;outline:none;box-sizing:border-box;margin-bottom:12px;"
+        onkeydown="if(event.key==='Enter')checkPw()" />
+      <button onclick="checkPw()" style="
+        width:100%;padding:11px;background:#135dff;color:#fff;border:none;
+        border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;">
+        进入
+      </button>
+      <p id="pwErr" style="margin:10px 0 0;font-size:13px;color:#d64045;display:none;">密码错误，请重试</p>
+    </div>
+  </div>
+
+  <script>
+    function checkPw() {
+      const val = document.getElementById('pwInput').value;
+      if (val === 'Chris0512') {
+        document.getElementById('pwOverlay').style.display = 'none';
+        sessionStorage.setItem('pw_ok', '1');
+      } else {
+        document.getElementById('pwErr').style.display = 'block';
+        document.getElementById('pwInput').value = '';
+        document.getElementById('pwInput').focus();
+      }
+    }
+    if (sessionStorage.getItem('pw_ok') === '1') {
+      document.getElementById('pwOverlay').style.display = 'none';
+    }
+  </script>
+
+  <div class="app">
+    <div class="card" style="padding: 20px 20px 16px;">
+      <h1>多国手机号清洗工具</h1>
+      <p class="subtitle">支持中国、美国、马来西亚、尼日利亚、墨西哥、越南、南非、印尼、巴西。上传后自动识别手机号列，可手动调整并导出结果。</p>
+    </div>
+
+    <section class="card">
+      <div class="card-header">1) 上传文件</div>
+      <div class="card-body">
+        <div id="dropZone" class="drop-zone">
+          <input id="fileInput" type="file" accept=".xlsx,.csv" hidden />
+          <div style="font-size: 16px; font-weight: 700; margin-bottom: 6px;">拖拽或点击上传 `.xlsx` / `.csv`</div>
+          <div class="muted">仅在浏览器本地处理，不上传服务器</div>
+        </div>
+        <p id="fileInfo" class="tips">尚未选择文件</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">2) 预览与字段选择</div>
+      <div class="card-body">
+        <div class="row">
+          <label for="phoneColumnSelect">手机号列：</label>
+          <select id="phoneColumnSelect" disabled></select>
+          <label for="countryCodeSelect">默认国家：</label>
+          <select id="countryCodeSelect">
+            <option value="">未指定（仅解析已含国家码的号码）</option>
+            <option value="86">中国 (+86)</option>
+            <option value="1">美国 (+1)</option>
+            <option value="27">南非 (+27)</option>
+            <option value="60">马来西亚 (+60)</option>
+            <option value="234">尼日利亚 (+234)</option>
+            <option value="52">墨西哥 (+52)</option>
+            <option value="84">越南 (+84)</option>
+            <option value="62">印尼 (+62)</option>
+            <option value="55">巴西 (+55)</option>
+            <option value="233">加纳 (+233)</option>
+            <option value="254">肯尼亚 (+254)</option>
+          </select>
+          <button id="outputDirBtn" type="button">选择输出目录</button>
+          <button id="runBtn" class="primary" disabled>开始清洗</button>
+        </div>
+        <p id="outputDirInfo" class="tips">尚未选择输出目录；清洗结果会写入所选目录下的 Cleanedforcheck/国家名_ISO_区号。</p>
+        <label for="autoWaToggle" class="tips" style="display:flex;align-items:center;gap:6px;margin-top:8px;">
+          <input id="autoWaToggle" type="checkbox" />
+          清洗后自动 WhatsApp 开通校验（运行时输入 TH333 token）
+        </label>
+        <p class="tips">系统会优先按列名关键词和前5行样本自动识别手机号列；选择默认国家后，无国家码的号码会自动补码后进行验证。</p>
+        <div class="table-wrap" style="margin-top: 12px;">
+          <table id="previewTable"></table>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">3) 清洗进度与结果</div>
+      <div class="card-body">
+        <div id="progressText" class="muted">等待开始</div>
+        <div class="progress-wrap"><div id="progressBar" class="progress-bar"></div></div>
+
+        <div class="stats" id="stats"></div>
+        <div id="failureStatsPanel" class="failure-panel" style="display:none;"></div>
+
+        <div class="row" style="margin: 14px 0 10px;">
+          <label for="typeFilter">号码类型：</label>
+          <select id="typeFilter">
+            <option value="all">全部</option>
+            <option value="mobile">仅手机</option>
+            <option value="fixed">仅固话</option>
+            <option value="mobile_and_fixed">手机+固话</option>
+          </select>
+          <label for="outputFormat">输出格式：</label>
+          <select id="outputFormat">
+            <option value="E164">E.164（+862512345678）</option>
+            <option value="INTERNATIONAL">国际格式（+86 25 1234 5678）</option>
+            <option value="NATIONAL">本地格式（025 1234 5678）</option>
+          </select>
+          <label for="sanitizeTextToggle" style="display:flex;align-items:center;gap:6px;">
+            <input id="sanitizeTextToggle" type="checkbox" checked />
+            文本净化
+          </label>
+          <button id="exportCsvBtn" disabled>导出 CSV</button>
+          <button id="exportPhoneOnlyBtn" disabled>仅导出号码</button>
+        </div>
+        <p id="mappingInfo" class="tips">待识别标准字段映射（导出前会按清洗后手机号自动去重）</p>
+
+        <div class="table-wrap">
+          <table id="resultTable"></table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    /**
+     * ==========================
+     * 数据读取模块（Data IO）
+     * ==========================
+     */
+    const FileService = {
+      detectEncodingByBom(arrBuf) {
+        const bytes = new Uint8Array(arrBuf.slice(0, 4));
+        if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) return "utf-8";
+        if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) return "utf-16le";
+        if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) return "utf-16be";
+        return "";
+      },
+
+      shouldUseTextFallback(file) {
+        const name = String(file?.name || "").toLowerCase();
+        const type = String(file?.type || "").toLowerCase();
+        const byExt = /\.(csv|tsv|txt)$/i.test(name);
+        const byMime = /csv|text\/plain|tab-separated-values/.test(type);
+        return byExt || byMime;
+      },
+
+      readWorkbookWithFallback(arrBuf) {
+        // lean: 不解析公式/样式/HTML，大幅降低大文件内存占用
+        const lean = { cellFormula: false, cellHTML: false, cellNF: false, cellStyles: false, sheetStubs: false };
+        const attempts = [
+          { type: "array", ...lean },
+          { type: "array", dense: true, ...lean },
+          { type: "array", dense: true, cellText: false, ...lean },
+          { type: "array", dense: true, WTF: true, ...lean }
+        ];
+
+        let lastError = null;
+        let namesOnlyWorkbook = null;
+        for (const opts of attempts) {
+          try {
+            const wb = XLSX.read(arrBuf, opts);
+            const names = Array.isArray(wb?.SheetNames) ? wb.SheetNames : [];
+            const keys = Object.keys(wb?.Sheets || {});
+            if (names.length && keys.length) {
+              return wb;
+            }
+            // 记录仅有 SheetNames 的结果，继续尝试其他参数组合。
+            if (names.length && !namesOnlyWorkbook) {
+              namesOnlyWorkbook = wb;
+            }
+          } catch (e) {
+            lastError = e;
+          }
+        }
+
+        if (namesOnlyWorkbook) {
+          return namesOnlyWorkbook;
+        }
+
+        if (lastError) {
+          throw new Error(`工作簿解析失败：${lastError.message || lastError}`);
+        }
+        throw new Error("工作簿解析失败：未知错误");
+      },
+
+      async tryReadWithExcelJsFallback(arrBuf) {
+        if (typeof ExcelJS === "undefined") return [];
+
+        try {
+          const wb = new ExcelJS.Workbook();
+          await wb.xlsx.load(arrBuf);
+          const ws = wb.worksheets && wb.worksheets[0];
+          if (!ws) return [];
+
+          let headerRowNumber = null;
+          let header = [];
+
+          ws.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+            if (headerRowNumber !== null) return;
+            const count = Math.max(row.cellCount || 0, row.actualCellCount || 0, ws.columnCount || 0);
+            const values = [];
+            for (let i = 1; i <= count; i += 1) {
+              values.push(String(row.getCell(i).text ?? row.getCell(i).value ?? "").trim());
+            }
+            if (values.some((v) => v !== "")) {
+              headerRowNumber = rowNumber;
+              header = values.map((v, idx) => v || `col_${idx + 1}`);
+            }
+          });
+
+          if (headerRowNumber === null) return [];
+
+          const colCount = Math.max(header.length, ws.columnCount || header.length);
+          while (header.length < colCount) {
+            header.push(`col_${header.length + 1}`);
+          }
+
+          const rows = [];
+          for (let r = headerRowNumber + 1; r <= ws.rowCount; r += 1) {
+            const row = ws.getRow(r);
+            if (!row) continue;
+
+            const obj = {};
+            let hasData = false;
+            for (let c = 1; c <= colCount; c += 1) {
+              const raw = row.getCell(c).text ?? row.getCell(c).value ?? "";
+              const val = String(raw ?? "").trim();
+              obj[header[c - 1]] = val;
+              if (val !== "") hasData = true;
+            }
+
+            if (hasData) rows.push(obj);
+          }
+
+          return rows;
+        } catch (e) {
+          return [];
+        }
+      },
+
+      async readLargeCsvDirectly(file) {
+        // 用 ArrayBuffer + TextDecoder，避免 FileReader.readAsText 在非 UTF-8 时行为不一致
+        const arrBuf = await file.arrayBuffer();
+        const bomEnc = this.detectEncodingByBom(arrBuf);
+        const encodings = ["utf-8", "gb18030", "utf-16le", "utf-16be", "windows-1252", "big5"];
+        const ordered = [bomEnc, ...encodings].filter(Boolean).filter((e, i, a) => a.indexOf(e) === i);
+
+        const diagLog = [];
+        for (const enc of ordered) {
+          try {
+            let text = new TextDecoder(enc).decode(arrBuf);
+            // 剥除 BOM（U+FEFF）
+            if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+            // 去除嵌入的空字符（UTF-16 解码时可能残留）
+            text = text.replace(/\u0000/g, "");
+            if (!text.trim()) { diagLog.push(`${enc}: 空文本`); continue; }
+            const rows = this.parseDelimitedTextToRows(text);
+            diagLog.push(`${enc}: 解析出 ${rows.length} 行`);
+            if (rows.length > 0) {
+              return {
+                rows,
+                sheetName: "LARGE_CSV_DIRECT",
+                debug: { source: "LARGE_CSV_DIRECT", encoding: enc, score: rows.length, ref: "", fullref: "", totalCells: rows.length }
+              };
+            }
+          } catch (e) { diagLog.push(`${enc}: 异常 ${e.message}`); }
+        }
+        throw new Error("大 CSV 解析失败（诊断）:\n" + diagLog.join("\n"));
+      },
+
+      async readSpreadsheet(file) {
+        const fileMB = file.size / 1024 / 1024;
+        const isXlsx = /\.xlsx?$/i.test(file.name);
+
+        // 超大文件（>100MB）硬拦截
+        if (isXlsx && fileMB > 100) {
+          alert(`文件过大（${fileMB.toFixed(1)} MB），超过 100MB 的 xlsx 会导致浏览器崩溃，请先另存为 CSV。`);
+          throw new Error("文件超过 100MB 限制");
+        }
+        // 大文件（30-100MB）软警告，用户确认后继续
+        if (isXlsx && fileMB > 30) {
+          const ok = confirm(
+            `文件较大（${fileMB.toFixed(1)} MB），解析可能需要较长时间且占用较多内存。\n\n建议关闭其他标签页以释放内存。\n\n是否继续？`
+          );
+          if (!ok) throw new Error("用户取消");
+        }
+
+        const allowTextFallback = this.shouldUseTextFallback(file);
+
+        // 大 CSV （>5MB）完全绕开 SheetJS，直接用 FileReader + 轻量解析器
+        if (allowTextFallback && fileMB > 5) {
+          return await this.readLargeCsvDirectly(file);
+        }
+
+        const arrBuf = await file.arrayBuffer();
+
+        // CSV/TXT 回退到旧口径：优先走 SheetJS 文本读取（与昨日结果更一致）。
+        if (allowTextFallback) {
+          try {
+            const csvWb = XLSX.read(arrBuf, { type: "array", raw: false });
+            const csvNames = Array.isArray(csvWb?.SheetNames) ? csvWb.SheetNames : [];
+            if (csvNames.length) {
+              const csvWs = csvWb.Sheets?.[csvNames[0]];
+              if (csvWs) {
+                let csvRows = XLSX.utils.sheet_to_json(csvWs, { defval: "", blankrows: false });
+                if (!csvRows.length) {
+                  const aoa = XLSX.utils.sheet_to_json(csvWs, { header: 1, defval: "", blankrows: false });
+                  csvRows = this.convertAoaToRows(aoa);
+                }
+                if (csvRows.length) {
+                  return {
+                    rows: csvRows,
+                    sheetName: "SHEETJS_CSV_LEGACY",
+                    debug: {
+                      source: "SHEETJS_CSV_LEGACY",
+                      encoding: "",
+                      score: this.scoreRowsReadability(csvRows),
+                      ref: (csvWs && csvWs["!ref"]) || "",
+                      fullref: (csvWs && csvWs["!fullref"]) || "",
+                      totalCells: Object.keys(csvWs || {}).filter((k) => /^[A-Za-z]+\d+$/.test(k)).length
+                    }
+                  };
+                }
+              }
+            }
+          } catch (e) {
+            // 忽略旧路径异常，继续走文本兜底。
+          }
+
+          const textResult = this.tryReadAsTextWorkbook(arrBuf);
+          if (textResult.rows.length) {
+            return {
+              rows: textResult.rows,
+              sheetName: "TEXT_PRIMARY",
+              debug: {
+                source: "TEXT_PRIMARY",
+                encoding: textResult.encoding,
+                score: textResult.score,
+                ref: "",
+                fullref: "",
+                totalCells: textResult.rows.length
+              }
+            };
+          }
+
+          const workbookResult = await this.tryReadWorkbookAsSafeFallback(arrBuf);
+          if (workbookResult.rows.length) {
+            const workbookScore = this.scoreRowsReadability(workbookResult.rows);
+            return {
+              rows: workbookResult.rows,
+              sheetName: workbookResult.sheetName,
+              debug: {
+                source: "WORKBOOK_SAFE_FALLBACK",
+                encoding: "",
+                score: workbookScore,
+                ref: workbookResult.debug?.ref || "",
+                fullref: workbookResult.debug?.fullref || "",
+                totalCells: workbookResult.debug?.totalCells || workbookResult.rows.length
+              }
+            };
+          }
+
+          throw new Error("文本文件解析失败：请确认文件编码（建议 UTF-8/GB18030）或先另存为 UTF-8 CSV");
+        }
+
+        const workbook = this.readWorkbookWithFallback(arrBuf);
+        const sheetNames = Array.isArray(workbook?.SheetNames) ? workbook.SheetNames : [];
+        if (!sheetNames.length) {
+          throw new Error("Excel 文件未包含可读取的工作表，请确认文件完整性或另存后重试");
+        }
+
+        const sheetsObj = workbook?.Sheets || {};
+        let firstSheetName = sheetNames[0];
+        let sheet = sheetsObj[firstSheetName];
+
+        // 兼容：部分异常文件会出现 SheetNames 与 Sheets key 不一致。
+        if (!sheet) {
+          const validName = sheetNames.find((name) => !!sheetsObj[name]);
+          if (validName) {
+            firstSheetName = validName;
+            sheet = sheetsObj[validName];
+          }
+        }
+
+        if (!sheet) {
+          const sheetKeys = Object.keys(sheetsObj);
+          if (sheetKeys.length) {
+            firstSheetName = sheetKeys[0];
+            sheet = sheetsObj[firstSheetName];
+          }
+        }
+
+        if (!sheet || typeof sheet !== "object") {
+          const knownKeys = Object.keys(sheetsObj).join(",") || "无";
+          throw new Error(`无法读取工作表：${firstSheetName || "未知Sheet"}（SheetsKeys: ${knownKeys}）`);
+        }
+
+        // 兼容补丁：部分第三方导出的 xlsx 会把 !ref 写窄，导致只读到表头。
+        this.rebuildSheetRefIfNeeded(sheet);
+
+        const sheetRange = XLSX.utils.decode_range(sheet["!ref"] || "A1");
+        const totalCols = sheetRange.e.c - sheetRange.s.c + 1;
+
+        // 超宽表格（>50 列）：先读表头，只提取有效列，避免每行构建千列对象导致 OOM
+        let rows = [];
+        if (totalCols > 50) {
+          rows = this.readSheetSelectiveCols(sheet, sheetRange);
+        }
+
+        // 方案1：按对象模式读取（第一行作为表头）。
+        if (!rows.length) {
+          rows = XLSX.utils.sheet_to_json(sheet, { defval: "", blankrows: false });
+        }
+
+        // 方案1.1：若存在 !fullref，则以完整范围再读一遍（部分文件 !ref 被写窄）。
+        if (!rows.length && sheet["!fullref"]) {
+          const fullRefSheet = { ...sheet, "!ref": sheet["!fullref"] };
+          rows = XLSX.utils.sheet_to_json(fullRefSheet, { defval: "", blankrows: false });
+        }
+
+        // 方案2：对象模式为空时，回退到二维数组模式并自动构造表头。
+        if (!rows.length) {
+          const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", blankrows: false });
+          rows = this.convertAoaToRows(aoa);
+        }
+
+        // 方案3：仍为空时，直接扫描单元格坐标重建数据（最强兜底）。
+        if (!rows.length) {
+          rows = this.buildRowsFromCellMap(sheet);
+        }
+
+        if (!rows.length) {
+          if (allowTextFallback) {
+            const textResult = this.tryReadAsTextWorkbook(arrBuf);
+            if (textResult.rows.length) {
+              return {
+                rows: textResult.rows,
+                sheetName: "TEXT_FALLBACK",
+                debug: {
+                  source: "TEXT_FALLBACK",
+                  encoding: textResult.encoding,
+                  score: textResult.score,
+                  ref: "",
+                  fullref: "",
+                  totalCells: textResult.rows.length
+                }
+              };
+            }
+          }
+        }
+
+        return {
+          rows,
+          sheetName: firstSheetName,
+          debug: {
+            source: "SHEETJS",
+            encoding: "",
+            score: 0,
+            ref: (sheet && sheet["!ref"]) || "",
+            fullref: (sheet && sheet["!fullref"]) || "",
+            totalCells: Object.keys(sheet || {}).filter((k) => /^[A-Za-z]+\d+$/.test(k)).length
+          }
+        };
+      },
+
+      async tryReadWorkbookAsSafeFallback(arrBuf) {
+        try {
+          const workbook = this.readWorkbookWithFallback(arrBuf);
+          const sheetNames = Array.isArray(workbook?.SheetNames) ? workbook.SheetNames : [];
+          if (!sheetNames.length) return { rows: [], sheetName: "", debug: {} };
+
+          const sheetsObj = workbook?.Sheets || {};
+          let firstSheetName = sheetNames[0];
+          let sheet = sheetsObj[firstSheetName];
+
+          if (!sheet) {
+            const validName = sheetNames.find((name) => !!sheetsObj[name]);
+            if (validName) {
+              firstSheetName = validName;
+              sheet = sheetsObj[validName];
+            }
+          }
+
+          if (!sheet || typeof sheet !== "object") return { rows: [], sheetName: "", debug: {} };
+
+          this.rebuildSheetRefIfNeeded(sheet);
+          let rows = XLSX.utils.sheet_to_json(sheet, { defval: "", blankrows: false });
+          if (!rows.length && sheet["!fullref"]) {
+            const fullRefSheet = { ...sheet, "!ref": sheet["!fullref"] };
+            rows = XLSX.utils.sheet_to_json(fullRefSheet, { defval: "", blankrows: false });
+          }
+          if (!rows.length) {
+            const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", blankrows: false });
+            rows = this.convertAoaToRows(aoa);
+          }
+          if (!rows.length) {
+            rows = this.buildRowsFromCellMap(sheet);
+          }
+
+          return {
+            rows,
+            sheetName: firstSheetName,
+            debug: {
+              ref: (sheet && sheet["!ref"]) || "",
+              fullref: (sheet && sheet["!fullref"]) || "",
+              totalCells: Object.keys(sheet || {}).filter((k) => /^[A-Za-z]+\d+$/.test(k)).length
+            }
+          };
+        } catch (e) {
+          return { rows: [], sheetName: "", debug: {} };
+        }
+      },
+
+      rebuildSheetRefIfNeeded(sheet) {
+        if (!sheet) return;
+
+        // 若提供了更完整范围，优先采用。
+        if (sheet["!fullref"]) {
+          sheet["!ref"] = sheet["!fullref"];
+        }
+
+        const cellKeys = Object.keys(sheet).filter((k) => /^[A-Za-z]+\d+$/.test(k));
+        if (!cellKeys.length) return;
+
+        let minR = Infinity;
+        let minC = Infinity;
+        let maxR = -1;
+        let maxC = -1;
+
+        cellKeys.forEach((addr) => {
+          const p = XLSX.utils.decode_cell(addr);
+          if (p.r < minR) minR = p.r;
+          if (p.c < minC) minC = p.c;
+          if (p.r > maxR) maxR = p.r;
+          if (p.c > maxC) maxC = p.c;
+        });
+
+        if (maxR >= 0 && maxC >= 0) {
+          sheet["!ref"] = XLSX.utils.encode_range({ s: { r: minR, c: minC }, e: { r: maxR, c: maxC } });
+        }
+      },
+
+      readSheetSelectiveCols(sheet, range) {
+        // 超宽表（>50列）专用：稀疏存储——读全部列但只写非空值
+        // 内存从"行数×1096列"降至"行数×实际非空值数"，全部数据均保留
+        const { s, e } = range;
+
+        // 提取表头行（第一行）
+        const headers = [];
+        for (let c = s.c; c <= e.c; c++) {
+          const addr = XLSX.utils.encode_cell({ r: s.r, c });
+          const cell = sheet[addr];
+          headers[c] = cell ? String(cell.v ?? "").trim() : `col_${c + 1}`;
+        }
+
+        // 按行稀疏提取：只存非空单元格，完整保留所有列数据
+        const rows = [];
+        for (let r = s.r + 1; r <= e.r; r++) {
+          const obj = {};
+          let hasAny = false;
+          for (let c = s.c; c <= e.c; c++) {
+            const addr = XLSX.utils.encode_cell({ r, c });
+            const cell = sheet[addr];
+            if (!cell) continue;
+            const val = String(cell.v ?? "").trim();
+            if (!val) continue;
+            obj[headers[c]] = val;
+            hasAny = true;
+          }
+          if (hasAny) rows.push(obj);
+        }
+
+        return rows;
+      },
+
+      buildRowsFromCellMap(sheet) {
+        const cellKeys = Object.keys(sheet || {}).filter((k) => /^[A-Za-z]+\d+$/.test(k));
+        if (!cellKeys.length) return [];
+
+        let minR = Infinity;
+        let minC = Infinity;
+        let maxR = -1;
+        let maxC = -1;
+        const cellPosMap = new Map();
+
+        cellKeys.forEach((addr) => {
+          const p = XLSX.utils.decode_cell(addr);
+          const key = `${p.r}:${p.c}`;
+          const cell = sheet[addr];
+          const val = cell ? (cell.w ?? cell.v ?? "") : "";
+          cellPosMap.set(key, val);
+          if (p.r < minR) minR = p.r;
+          if (p.c < minC) minC = p.c;
+          if (p.r > maxR) maxR = p.r;
+          if (p.c > maxC) maxC = p.c;
+        });
+
+        if (maxR <= minR) return [];
+
+        const header = [];
+        for (let c = minC; c <= maxC; c += 1) {
+          const headVal = String(cellPosMap.get(`${minR}:${c}`) ?? "").trim();
+          header.push(headVal || `col_${c - minC + 1}`);
+        }
+
+        const rows = [];
+        for (let r = minR + 1; r <= maxR; r += 1) {
+          const obj = {};
+          let hasData = false;
+          for (let c = minC; c <= maxC; c += 1) {
+            const val = cellPosMap.get(`${r}:${c}`) ?? "";
+            obj[header[c - minC]] = val;
+            if (String(val).trim() !== "") hasData = true;
+          }
+          if (hasData) rows.push(obj);
+        }
+
+        return rows;
+      },
+
+      tryReadAsTextWorkbook(arrBuf) {
+        const bomEnc = this.detectEncodingByBom(arrBuf);
+        const encodings = [bomEnc, "utf-8", "gb18030", "big5", "utf-16le", "utf-16be", "windows-1252"].filter(Boolean)
+          .filter((enc, idx, arr) => arr.indexOf(enc) === idx);
+
+        // 先用小样本挑选最佳编码，避免大文件全量多次解析导致内存暴涨。
+        const sampleBuf = arrBuf.slice(0, Math.min(arrBuf.byteLength, 256 * 1024));
+        let bestEncoding = "";
+        let bestSampleScore = -Infinity;
+
+        for (const enc of encodings) {
+          try {
+            const sampleText = new TextDecoder(enc).decode(sampleBuf).replace(/\u0000/g, "");
+            if (!sampleText.trim()) continue;
+            if (!/[\t,;|]/.test(sampleText.slice(0, 4000))) continue;
+            const score = this.scoreRawTextReadability(sampleText);
+            if (score > bestSampleScore) {
+              bestSampleScore = score;
+              bestEncoding = enc;
+            }
+          } catch (e) {
+            // 当前编码解析失败则尝试下一种编码。
+          }
+        }
+
+        if (!bestEncoding) {
+          return { rows: [], encoding: "", score: -Infinity };
+        }
+
+        try {
+          const text = new TextDecoder(bestEncoding).decode(arrBuf).replace(/\u0000/g, "");
+          if (!text.trim()) return { rows: [], encoding: bestEncoding, score: -Infinity };
+
+          // 大文件跳过 SheetJS 文本解析（XLSX.read string 模式对大 CSV 内存开销极高）
+          const isLargeBuf = arrBuf.byteLength > 5 * 1024 * 1024;
+          const sheetRows = isLargeBuf ? [] : this.parseTextWithSheetJs(text);
+          const delimitedRows = sheetRows.length ? [] : this.parseDelimitedTextToRows(text);
+          const pickedRows = sheetRows.length ? sheetRows : delimitedRows;
+
+          const finalScore = pickedRows.length ? this.scoreRowsReadability(pickedRows) : -Infinity;
+          return { rows: pickedRows, encoding: bestEncoding, score: finalScore };
+        } catch (e) {
+          return { rows: [], encoding: bestEncoding, score: -Infinity };
+        }
+      },
+
+      parseTextWithSheetJs(text) {
+        try {
+          const wb = XLSX.read(text, { type: "string" });
+          const names = Array.isArray(wb?.SheetNames) ? wb.SheetNames : [];
+          if (!names.length) return [];
+          const ws = wb.Sheets?.[names[0]];
+          if (!ws) return [];
+
+          let rows = XLSX.utils.sheet_to_json(ws, { defval: "", blankrows: false });
+          if (!rows.length) {
+            const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", blankrows: false });
+            rows = this.convertAoaToRows(aoa);
+          }
+          return rows;
+        } catch (e) {
+          return [];
+        }
+      },
+
+      scoreRawTextReadability(text) {
+        const s = String(text || "");
+        if (!s.trim()) return -Infinity;
+        const mojibake = (s.match(/[ÃÂÐÑæåçøþœ�]/g) || []).length;
+        const alnum = (s.match(/[A-Za-z0-9]/g) || []).length;
+        const asciiPrintable = (s.match(/[\x20-\x7E]/g) || []).length;
+        const ctrl = (s.match(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g) || []).length;
+        const keywordHit = (s.match(/email|mail|phone|mobile|tel|website|url|company|address|industry|name|city|country|href|http|www\./gi) || []).length;
+        const suspiciousCjk = (s.match(/[鍙鍦鍚鏂鏃鏍鎴鏈绗缁鐢姹夎嫳]/g) || []).length;
+        return asciiPrintable * 0.8 + alnum * 1.2 + keywordHit * 20 - mojibake * 10 - suspiciousCjk * 6 - ctrl * 15;
+      },
+
+      parseDelimitedTextToRows(text) {
+        const source = String(text || "");
+        if (!source.trim()) return [];
+
+        const firstLine = this.findFirstNonEmptyLine(source);
+        if (!firstLine) return [];
+
+        const bestDelim = this.detectDelimiterFromLine(firstLine);
+        const roughDataRowCount = this.estimateDataRowCount(source);
+        const rows = [];
+        let header = null;
+
+        let cells = [];
+        let field = "";
+        let inQuote = false;
+
+        const pushField = () => {
+          cells.push(field);
+          field = "";
+        };
+
+        const finalizeRow = () => {
+          pushField();
+
+          const hasAny = cells.some((c) => String(c ?? "").trim() !== "");
+          if (!hasAny) {
+            if (!header) {
+              cells = [];
+              return;
+            }
+          }
+
+          if (!header) {
+            header = cells.map((h, i) => {
+              const t = String(h ?? "").trim();
+              return t || `col_${i + 1}`;
+            });
+            cells = [];
+            return;
+          }
+
+          const obj = {};
+          for (let i = 0; i < header.length; i += 1) {
+            const val = String(cells[i] ?? "").trim();
+            obj[header[i]] = val;
+          }
+          rows.push(obj);
+          cells = [];
+          inQuote = false;
+        };
+
+        for (let i = 0; i < source.length; i += 1) {
+          const ch = source[i];
+
+          if (ch === '"') {
+            if (inQuote && source[i + 1] === '"') {
+              field += '"';
+              i += 1;
+            } else {
+              inQuote = !inQuote;
+            }
+            continue;
+          }
+
+          if (!inQuote && ch === bestDelim) {
+            pushField();
+            continue;
+          }
+
+          if (ch === "\n" || ch === "\r") {
+            if (ch === "\r" && source[i + 1] === "\n") i += 1;
+            finalizeRow();
+            continue;
+          }
+
+          field += ch;
+        }
+
+        // 收尾：处理最后一行
+        if (field.length || cells.length) {
+          finalizeRow();
+        }
+
+        // 行数保护：若标准CSV引号规则导致大量行被合并，自动改用宽松模式重解析。
+        if (roughDataRowCount > 0 && rows.length < Math.floor(roughDataRowCount * 0.7)) {
+          return this.parseDelimitedTextToRowsRelaxed(source, bestDelim);
+        }
+
+        return rows;
+      },
+
+      estimateDataRowCount(text) {
+        const s = String(text || "");
+        if (!s.trim()) return 0;
+
+        let lineCount = 0;
+        let hasCharInLine = false;
+        for (let i = 0; i < s.length; i += 1) {
+          const ch = s[i];
+          if (ch !== "\r" && ch !== "\n" && ch !== "\t" && ch !== " ") {
+            hasCharInLine = true;
+          }
+          if (ch === "\n" || ch === "\r") {
+            if (hasCharInLine) lineCount += 1;
+            hasCharInLine = false;
+            if (ch === "\r" && s[i + 1] === "\n") i += 1;
+          }
+        }
+        if (hasCharInLine) lineCount += 1;
+
+        // 扣除表头。
+        return Math.max(0, lineCount - 1);
+      },
+
+      parseDelimitedTextToRowsRelaxed(sourceText, delimiter) {
+        const source = String(sourceText || "");
+        const rows = [];
+        let header = null;
+
+        let cells = [];
+        let field = "";
+
+        const pushField = () => {
+          cells.push(field);
+          field = "";
+        };
+
+        const finalizeRow = () => {
+          pushField();
+          const hasAny = cells.some((c) => String(c ?? "").trim() !== "");
+          if (!hasAny) {
+            if (!header) {
+              cells = [];
+              return;
+            }
+          }
+
+          if (!header) {
+            header = cells.map((h, i) => {
+              const t = String(h ?? "").trim();
+              return t || `col_${i + 1}`;
+            });
+            cells = [];
+            return;
+          }
+
+          const obj = {};
+          for (let i = 0; i < header.length; i += 1) {
+            const val = String(cells[i] ?? "").trim();
+            obj[header[i]] = val;
+          }
+          rows.push(obj);
+          cells = [];
+        };
+
+        for (let i = 0; i < source.length; i += 1) {
+          const ch = source[i];
+          if (ch === delimiter) {
+            pushField();
+            continue;
+          }
+          if (ch === "\n" || ch === "\r") {
+            if (ch === "\r" && source[i + 1] === "\n") i += 1;
+            finalizeRow();
+            continue;
+          }
+          field += ch;
+        }
+
+        if (field.length || cells.length) {
+          finalizeRow();
+        }
+
+        return rows;
+      },
+
+      findFirstNonEmptyLine(text) {
+        const s = String(text || "");
+        let start = 0;
+        while (start < s.length) {
+          let end = start;
+          while (end < s.length && s[end] !== "\n" && s[end] !== "\r") end += 1;
+          const line = s.slice(start, end).trim();
+          if (line) return line;
+          if (s[end] === "\r" && s[end + 1] === "\n") end += 1;
+          start = end + 1;
+        }
+        return "";
+      },
+
+      detectDelimiterFromLine(line) {
+        const delimiters = [",", "\t", ";", "|"];
+        let bestDelim = ",";
+        let bestCount = -1;
+        for (const d of delimiters) {
+          const count = String(line || "").split(d).length - 1;
+          if (count > bestCount) {
+            bestCount = count;
+            bestDelim = d;
+          }
+        }
+        return bestDelim;
+      },
+
+      parseCsvLine(line, delimiter) {
+        const out = [];
+        let buf = "";
+        let inQuote = false;
+        for (let i = 0; i < line.length; i += 1) {
+          const ch = line[i];
+          if (ch === '"') {
+            if (inQuote && line[i + 1] === '"') {
+              buf += '"';
+              i += 1;
+            } else {
+              inQuote = !inQuote;
+            }
+            continue;
+          }
+
+          if (ch === delimiter && !inQuote) {
+            out.push(buf);
+            buf = "";
+            continue;
+          }
+          buf += ch;
+        }
+        out.push(buf);
+        return out;
+      },
+
+      scoreRowsReadability(rows) {
+        if (!Array.isArray(rows) || !rows.length) return -Infinity;
+
+        const head = rows[0] || {};
+        const keys = Object.keys(head).slice(0, 20);
+        const sampleVals = [];
+
+        for (let i = 0; i < Math.min(rows.length, 20); i += 1) {
+          const row = rows[i] || {};
+          for (const k of keys.slice(0, 8)) {
+            sampleVals.push(String(row[k] ?? ""));
+          }
+        }
+
+        const text = [...keys, ...sampleVals].join(" ");
+        if (!text.trim()) return -Infinity;
+
+        const headerText = keys.join(" ");
+        const mojibake = (text.match(/[ÃÂÐÑæåçøþœ�]/g) || []).length;
+        const headerMojibake = (headerText.match(/[ÃÂÐÑæåçøþœ�]/g) || []).length;
+        const unreadable = (text.match(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g) || []).length;
+        const alnum = (text.match(/[A-Za-z0-9]/g) || []).length;
+        const asciiPrintable = (text.match(/[\x20-\x7E]/g) || []).length;
+        const headerKeywordHit = (headerText.match(/email|mail|phone|mobile|tel|website|url|company|address|industry|name|city|country|href/gi) || []).length;
+        const sampleKeywordHit = (text.match(/http|www\.|@|\.com|\.net|\.org|\.co\./gi) || []).length;
+        const suspiciousCjk = (text.match(/[鍙鍦鍚鏂鏃鏍鎴鏈绗缁鐢姹夎嫳]/g) || []).length;
+        const headerLen = Math.max(1, headerText.length);
+        const headerMojibakeRatio = headerMojibake / headerLen;
+
+        return asciiPrintable * 0.8 + alnum + headerKeywordHit * 25 + sampleKeywordHit * 8 - mojibake * 8 - headerMojibake * 28 - headerMojibakeRatio * 600 - suspiciousCjk * 6 - unreadable * 12;
+      },
+
+      convertAoaToRows(aoa) {
+        if (!Array.isArray(aoa) || !aoa.length) return [];
+
+        // 跳过前导空行，兼容“首行标题/空行”情况。
+        let headIndex = 0;
+        while (headIndex < aoa.length) {
+          const row = aoa[headIndex] || [];
+          const hasValue = row.some((v) => String(v ?? "").trim() !== "");
+          if (hasValue) break;
+          headIndex += 1;
+        }
+
+        if (headIndex >= aoa.length) return [];
+
+        const rawHeader = aoa[headIndex] || [];
+        const header = rawHeader.map((v, idx) => {
+          const t = String(v ?? "").trim();
+          return t || `col_${idx + 1}`;
+        });
+
+        const rows = [];
+        for (let i = headIndex + 1; i < aoa.length; i += 1) {
+          const source = aoa[i] || [];
+          const obj = {};
+          let hasData = false;
+
+          for (let j = 0; j < header.length; j += 1) {
+            const val = source[j] ?? "";
+            obj[header[j]] = val;
+            if (String(val).trim() !== "") hasData = true;
+          }
+
+          if (hasData) rows.push(obj);
+        }
+
+        return rows;
+      },
+
+      escapeCsvCell(value) {
+        const text = String(value ?? "");
+        if (/[",\r\n]/.test(text)) {
+          return `"${text.replace(/"/g, '""')}"`;
+        }
+        return text;
+      },
+
+      async downloadCsv(rows, filename, opts = {}) {
+        const sanitizeFn = typeof opts.sanitizeFn === "function" ? opts.sanitizeFn : null;
+        const onProgress = typeof opts.onProgress === "function" ? opts.onProgress : null;
+
+        const safeRows = Array.isArray(rows) ? rows : [];
+        const headers = safeRows.length ? Object.keys(safeRows[0] || {}) : [];
+
+        const parts = ["\uFEFF"];
+        if (headers.length) {
+          parts.push(headers.map((h) => this.escapeCsvCell(h)).join(",") + "\r\n");
+        }
+
+        const total = safeRows.length;
+        const chunkSize = 3000;
+        for (let i = 0; i < total; i += chunkSize) {
+          const end = Math.min(i + chunkSize, total);
+          let chunkText = "";
+
+          for (let j = i; j < end; j += 1) {
+            const row = safeRows[j] || {};
+            const line = headers.map((h) => {
+              const rawVal = row[h];
+              const val = sanitizeFn ? sanitizeFn(rawVal) : rawVal;
+              return this.escapeCsvCell(val);
+            }).join(",");
+            chunkText += line + "\r\n";
+          }
+
+          parts.push(chunkText);
+          if (onProgress) onProgress(end, total);
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+
+        const blob = new Blob(parts, { type: "text/csv;charset=utf-8;" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      },
+      downloadXlsx(rows, filename) {
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(rows);
+        XLSX.utils.book_append_sheet(wb, ws, "清洗结果");
+        XLSX.writeFile(wb, filename);
+      }
+    };
+
+    /**
+     * =============================
+     * 号码清洗与验证模块（核心逻辑）
+     * =============================
+     */
+    const PhoneCleaner = window.PhoneCleanerCore?.PhoneCleaner || {
+      countryMap: {
+        "86": { name: "中国",    iso: "CN" },
+        "1":  { name: "美国",    iso: "US" },
+        "60": { name: "马来西亚", iso: "MY" },
+        "234":{ name: "尼日利亚", iso: "NG" },
+        "52": { name: "墨西哥",  iso: "MX" },
+        "84": { name: "越南",    iso: "VN" },
+        "27": { name: "南非",    iso: "ZA" },
+        "62": { name: "印尼",    iso: "ID" },
+        "55":  { name: "巴西",    iso: "BR" },
+        "233": { name: "加纳",    iso: "GH" },
+        "254": { name: "肯尼亚",  iso: "KE" }
+      },
+
+      getIsoByCode(code) {
+        return (this.countryMap[code] || {}).iso || "";
+      },
+
+      // 预处理：清理非数字字符，统一处理 +/00 前缀，补默认国家码
+      preprocess(raw, defaultCountryCode) {
+        // 去除分机号后缀：ext. 1208 / ext 183 / x 212 / #222 等
+        let s = String(raw ?? "").trim()
+          .replace(/\s+(?:ext\.?|extension|poste)\s*\d+\s*$/i, "")
+          .replace(/\s+x\s+\d+\s*$/i, "")
+          .replace(/#\d+\s*$/, "")
+          .trim();
+
+        // Excel 浮点数（如 1724283.0004976853）：只保留整数部分
+        if (/^\d+\.\d+$/.test(s)) s = s.split(".")[0];
+
+        // 规范化 +CC (0)XX 格式：去除括号内的本地拨号前缀 0，如 +84 (0)12 → +84 12
+        s = s.replace(/^(\+\d+)\s*\(0\)/, "$1 ");
+        if (!s) return { str: "", withPlus: false };
+
+        const rawDigitsForMx = s.replace(/\D+/g, "");
+        if (defaultCountryCode === "52" && !s.startsWith("+") && rawDigitsForMx.startsWith("0")) {
+          return { str: "", withPlus: false, badFormat: true };
+        }
+
+        if (s.startsWith("+")) {
+          const digits = s.slice(1).replace(/\D+/g, "");
+          if (!digits) return { str: "", withPlus: false };
+          const mxNormalized = digits.replace(/^521(\d{10})$/, "52$1");
+          // 去除国际格式中多余的 trunk 0：+CC0LOCAL → +CCLOCAL（如 +2540203... → +254203...）
+          // 尝试1/2/3位国家码后是否跟了0，若去0后长度合理则采用
+          const stripped = mxNormalized.replace(/^(\d{1,3})0(\d{9,11})$/, (_, cc, local) => cc + local);
+          return { str: "+" + stripped, withPlus: true };
+        }
+
+        const digits = s.replace(/\D+/g, "");
+        if (!digits) return { str: "", withPlus: false };
+
+        // 00 → + 前缀
+        if (digits.startsWith("00")) {
+          const rest = digits.slice(2);
+          return rest ? { str: "+" + rest, withPlus: true } : { str: "", withPlus: false };
+        }
+
+        // 纯数字：去前导 0，拼默认国家码
+        let local = digits;
+        if (defaultCountryCode !== "52" && local.startsWith("0")) local = local.slice(1);
+        if (defaultCountryCode === "52" && /^521\d{10}$/.test(local)) local = local.replace(/^521/, "");
+        if (!defaultCountryCode && /^521\d{10}$/.test(local)) return { str: local.replace(/^521/, "52"), withPlus: false };
+
+        if (defaultCountryCode) {
+          return { str: defaultCountryCode + local, withPlus: false };
+        }
+        return { str: local, withPlus: false };
+      },
+
+      getLib() {
+        return window.libphonenumber || {};
+      },
+
+      formatNumber(parsed, fmt) {
+        try {
+          let result;
+          if (fmt === "INTERNATIONAL") result = parsed.formatInternational();
+          else if (fmt === "NATIONAL") result = parsed.formatNational();
+          else result = parsed.format("E.164");
+          return result.replace(/^\+/, "");
+        } catch (_) {
+          return String(parsed.number || "").replace(/^\+/, "");
+        }
+      },
+
+      fallbackMexicoNumber(rawValue, defaultCountryCode, outputFormat) {
+        const raw = String(rawValue ?? "");
+        const candidates = [];
+        const intlMatches = raw.matchAll(/\+?\s*52[\s\-‐-―()]*1?[\s\-‐-―()]*(\d[\d\s\-‐-―()]{8,}\d)/g);
+        for (const m of intlMatches) {
+          const local = String(m[1] || "").replace(/\D+/g, "");
+          if (local.length === 10) candidates.push(local);
+        }
+        const digits = raw.replace(/\D+/g, "");
+        if (/^521\d{10}$/.test(digits)) candidates.push(digits.slice(3));
+        if (/^52\d{10}$/.test(digits)) candidates.push(digits.slice(2));
+        if (defaultCountryCode === "52" && /^[1-9]\d{9}$/.test(digits)) candidates.push(digits);
+        const local = candidates.find(x => /^\d{10}$/.test(x));
+        if (!local) return null;
+        const e164 = "52" + local;
+        const formatted = outputFormat === "INTERNATIONAL"
+          ? `52 ${local.slice(0, 3)} ${local.slice(3, 6)} ${local.slice(6)}`
+          : outputFormat === "NATIONAL"
+            ? `${local.slice(0, 3)} ${local.slice(3, 6)} ${local.slice(6)}`
+            : e164;
+        return {
+          "原始号码": rawValue,
+          "清洗后号码": formatted,
+          "状态": "有效(MX)",
+          "检测国家": "MX",
+          "号码类型": "FIXED_LINE_OR_MOBILE"
+        };
+      },
+
+      // 对单次清洗结果评分：越高越优先
+      _scoreResult(r) {
+        if (!String(r["状态"] || "").startsWith("有效")) return 0;
+        const t = r["号码类型"] || "";
+        if (["MOBILE", "FIXED_LINE_OR_MOBILE"].includes(t)) return 4;
+        if (t === "FIXED_LINE") return 3;
+        if (t) return 2;   // 其他有类型
+        return 1;          // isPossible 通过但无类型
+      },
+
+      // 从原始单元格值中提取所有电话号码候选（支持文字标签、\+转义、重复号码、0前缀多号等）
+      extractPhoneCandidatesFromRaw(rawStr) {
+        // 步骤1：\+ → + 归一化
+        const s = String(rawStr ?? '').replace(/\\\+/g, '+').trim();
+        if (!s) return [];
+        // 步骤2：常规分隔符 + 空格前国际号码前缀 初步分段
+        const coarse = s
+          .split(/[\/,;|\n、]/)
+          .flatMap(seg => seg.trim().split(/\s+(?=\+\s*\d)/))
+          .map(x => x.trim()).filter(Boolean);
+        const result = [];
+        for (const seg of coarse) result.push(...this._normalizePhoneSegment(seg));
+        return result.length ? result : [s];
+      },
+
+      // 单段文本预处理：剥文字标签 → 括号区号归一 → 重复号码去重 → 0前缀多号拆分
+      _normalizePhoneSegment(seg) {
+        // 剥离字母/中文文字标签，提取含数字的片段
+        const pieces = seg
+          .replace(/[A-Za-z\u4e00-\u9fff]+/g, '\x00')
+          .replace(/[^\d+\s()\-‐-―\x00]/g, ' ')
+          .split('\x00')
+          .map(x => x.replace(/\s+/g, ' ').trim())
+          .filter(x => /\d/.test(x));
+        if (!pieces.length) return [seg];
+
+        const result = [];
+        for (let piece of pieces) {
+          // 步骤3：+CC(非零区号) → +CC区号（如 +233(30)8251066 → +233308251066）
+          piece = piece.replace(/(\+\d{1,3})\s*\(([1-9]\d{0,3})\)\s*/g, '$1$2 ').trim();
+          const allDigits = piece.replace(/\D/g, '');
+
+          // 步骤4A：整体偶数对半重复（如 302263023302263023）
+          let handled = false;
+          if (allDigits.length >= 12 && allDigits.length % 2 === 0) {
+            const half = allDigits.length / 2;
+            if (allDigits.slice(0, half) === allDigits.slice(half)) {
+              result.push(piece.startsWith('+') ? '+' + allDigits.slice(0, half) : allDigits.slice(0, half));
+              handled = true;
+            }
+          }
+          // 步骤4B：后缀重复（6~10位尾段出现两次，如 +CC(area)NUMNUM）
+          if (!handled) {
+            for (let dl = 10; dl >= 6; dl--) {
+              if (allDigits.length >= dl * 2 &&
+                  allDigits.slice(-dl) === allDigits.slice(-(dl * 2), -dl)) {
+                result.push(piece.startsWith('+') ? '+' + allDigits.slice(0, -dl) : allDigits.slice(0, -dl));
+                handled = true;
+                break;
+              }
+            }
+          }
+          if (handled) continue;
+
+          // 步骤5：0前缀相邻多号码拆分（累积 ≥9 位后遇到0开头词则切割）
+          // 已有+国际码前缀的号码不做此拆分：国际格式中末尾含0的子段（如0226/0000/00）是号码自身的组成部分而非第二之号码
+          if (piece.startsWith('+')) {
+            if (allDigits.length >= 6) result.push(piece);
+            continue;
+          }
+          const words = piece.split(/\s+/);
+          const groups = [];
+          let cur = '';
+          for (const w of words) {
+            if (!w) continue;
+            if (cur && /^0/.test(w) && cur.replace(/\D/g, '').length >= 7) {
+              groups.push(cur.trim());
+              cur = w;
+            } else {
+              cur = cur ? cur + ' ' + w : w;
+            }
+          }
+          if (cur.trim()) groups.push(cur.trim());
+          result.push(...groups.filter(g => g.replace(/\D/g, '').length >= 6));
+        }
+        return result.filter(Boolean);
+      },
+
+      cleanOne(rawValue, opts = {}) {
+        const { defaultCountryCode = "", defaultCountryISO = "", typeFilter = "all", outputFormat = "E164" } = opts;
+
+        // 单元格含多个号码时，逐一尝试并选最佳（Mobile > Fixed > 其他有效 > 无效）
+        const candidates = this.extractPhoneCandidatesFromRaw(rawValue);
+        if (candidates.length > 1) {
+          let best = null, bestScore = -1;
+          for (const c of candidates) {
+            const res = this.cleanOne(c, opts);
+            const score = this._scoreResult(res);
+            if (score > bestScore) { bestScore = score; best = res; }
+            if (bestScore >= 4) break; // 已是最优，无需继续
+          }
+          return best || this.cleanOne(candidates[0], opts);
+        }
+
+        const original = candidates[0] || "";
+        const empty = { "原始号码": original, "清洗后号码": "", "检测国家": "", "号码类型": "" };
+
+        const { str: preprocessed, withPlus, badFormat } = this.preprocess(original, defaultCountryCode);
+        if (badFormat) {
+          return { ...empty, "状态": "无效-bad format" };
+        }
+        if (!preprocessed) {
+          return { ...empty, "状态": "无效-空号" };
+        }
+
+        const lib = this.getLib();
+        const parseFn = lib.parsePhoneNumberFromString;
+        if (typeof parseFn !== "function") {
+          return { ...empty, "状态": "无效-库未加载" };
+        }
+
+        let parsed = null;
+
+        // 尝试-1（最高优先级）：指定了默认国家时，用原始纯数字+默认ISO直接解析
+        // 防止 +(55)XXXX 等带区号格式的墨西哥号码被 +55(巴西) 截获
+        if (!parsed && defaultCountryISO) {
+          const rawDigits = String(original).replace(/\D+/g, "");
+          if (rawDigits) {
+            try {
+              const p = parseFn(rawDigits, defaultCountryISO);
+              if (p && p.isValid()) parsed = p;
+            } catch (_) {}
+          }
+        }
+
+        // 尝试0：原始数字直接加 + 解析（处理已含国家码但无 + 前缀的情况，如 84354238646）
+        // 仅在未指定默认国家时启用，避免墨西哥城区号55被误判为巴西(+55)等冲突场景
+        if (!parsed && !withPlus && !defaultCountryCode) {
+          const rawDigits = String(original).replace(/\D+/g, "");
+          if (rawDigits && !rawDigits.startsWith("0")) {
+            try {
+              const p = parseFn("+" + rawDigits);
+              if (p && (p.isValid() || p.isPossible())) parsed = p;
+            } catch (_) {}
+          }
+        }
+
+        // 尝试1：预处理后解析（已含 + 则原样，否则补默认国家码加 +）
+        if (!parsed) {
+          const attemptStr = withPlus ? preprocessed : "+" + preprocessed;
+          try {
+            const p = parseFn(attemptStr);
+            if (p && (p.isValid() || p.isPossible())) parsed = p;
+          } catch (_) {}
+        }
+
+        // 尝试2：传入 defaultCountryISO 兜底
+        if (!parsed && defaultCountryISO) {
+          try {
+            const p = parseFn(preprocessed, defaultCountryISO);
+            if (p && (p.isValid() || p.isPossible())) parsed = p;
+          } catch (_) {}
+        }
+
+        if (!parsed) {
+          const mxFallback = this.fallbackMexicoNumber(original, defaultCountryCode, outputFormat);
+          if (mxFallback) return mxFallback;
+          return { ...empty, "状态": "无效-号段不符" };
+        }
+
+        const phoneType  = parsed.getType() || "";
+        const countryISO = parsed.country   || "";
+        if (countryISO === "MX" && !phoneType) {
+          const mxFallback = this.fallbackMexicoNumber(original, defaultCountryCode, outputFormat);
+          if (mxFallback) return mxFallback;
+        }
+
+        // 号码类型过滤
+        const isMobile = ["MOBILE", "FIXED_LINE_OR_MOBILE"].includes(phoneType);
+        const isFixed  = ["FIXED_LINE", "FIXED_LINE_OR_MOBILE"].includes(phoneType);
+
+        if (typeFilter === "mobile" && !isMobile) {
+          return { ...empty, "状态": `无效-非手机号(${phoneType || "未知"})`, "检测国家": countryISO, "号码类型": phoneType };
+        }
+        if (typeFilter === "fixed" && !isFixed) {
+          return { ...empty, "状态": `无效-非固话(${phoneType || "未知"})`, "检测国家": countryISO, "号码类型": phoneType };
+        }
+        if (typeFilter === "mobile_and_fixed" && !isMobile && !isFixed) {
+          return { ...empty, "状态": `无效-非手机/固话(${phoneType || "未知"})`, "检测国家": countryISO, "号码类型": phoneType };
+        }
+
+        const formatted = this.formatNumber(parsed, outputFormat);
+
+        return {
+          "原始号码":  original,
+          "清洗后号码": formatted,
+          "状态":     `有效(${countryISO})`,
+          "检测国家":  countryISO,
+          "号码类型":  phoneType
+        };
+      }
+    };
+
+    /**
+     * =============================
+     * UI 控制与应用主流程模块
+     * =============================
+     */
+    const App = {
+      state: {
+        rows: [],
+        columns: [],
+        fileName: "",
+        results: [],
+        exportRowsFull: [],
+        semanticMap: {},
+        outputDirHandle: null,
+        outputCountryDirHandle: null,
+        runStatsBase: null
+      },
+
+      els: {
+        fileInput: document.getElementById("fileInput"),
+        dropZone: document.getElementById("dropZone"),
+        fileInfo: document.getElementById("fileInfo"),
+        phoneColumnSelect: document.getElementById("phoneColumnSelect"),
+        countryCodeSelect: document.getElementById("countryCodeSelect"),
+        outputDirBtn: document.getElementById("outputDirBtn"),
+        outputDirInfo: document.getElementById("outputDirInfo"),
+        autoWaToggle: document.getElementById("autoWaToggle"),
+        previewTable: document.getElementById("previewTable"),
+        runBtn: document.getElementById("runBtn"),
+        progressText: document.getElementById("progressText"),
+        progressBar: document.getElementById("progressBar"),
+        resultTable: document.getElementById("resultTable"),
+        exportCsvBtn: document.getElementById("exportCsvBtn"),
+        exportPhoneOnlyBtn: document.getElementById("exportPhoneOnlyBtn"),
+        typeFilter: document.getElementById("typeFilter"),
+        outputFormat: document.getElementById("outputFormat"),
+        sanitizeTextToggle: document.getElementById("sanitizeTextToggle"),
+        mappingInfo: document.getElementById("mappingInfo"),
+        stats: document.getElementById("stats"),
+        failureStatsPanel: document.getElementById("failureStatsPanel")
+      },
+
+      init() {
+        this.bindEvents();
+      },
+
+      async processSelectedFile(file) {
+        if (!file) return;
+        try {
+          await this.handleFile(file);
+        } catch (error) {
+          console.error("文件处理失败", error);
+          alert(`读取文件失败：${error?.message || error}`);
+          this.setProgress(0, "读取失败，请更换文件或重试");
+        }
+      },
+
+      bindEvents() {
+        this.els.outputDirBtn.addEventListener("click", async () => {
+          await this.selectOutputDirectory();
+        });
+
+        this.els.dropZone.addEventListener("click", () => {
+          // 允许重复选择同一个文件时仍触发 change 事件。
+          this.els.fileInput.value = "";
+          this.els.fileInput.click();
+        });
+        this.els.fileInput.addEventListener("change", async (e) => {
+          const file = e.target.files?.[0];
+          await this.processSelectedFile(file);
+        });
+
+        this.els.dropZone.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          this.els.dropZone.classList.add("active");
+        });
+        this.els.dropZone.addEventListener("dragleave", () => this.els.dropZone.classList.remove("active"));
+        this.els.dropZone.addEventListener("drop", async (e) => {
+          e.preventDefault();
+          this.els.dropZone.classList.remove("active");
+          const file = e.dataTransfer.files?.[0];
+          await this.processSelectedFile(file);
+        });
+
+        this.els.runBtn.addEventListener("click", () => this.runCleaning());
+
+        this.els.exportPhoneOnlyBtn.addEventListener("click", async () => {
+          const base = this.state.fileName.replace(/\.[^.]+$/, "") || "cleaned_phone";
+          const phones = this.state.exportRowsFull
+            .map(r => String(r.standard_phone_number ?? "").trim())
+            .filter(Boolean);
+          const csvContent = "清洗后号码\n" + phones.join("\n");
+          const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url; a.download = `${base}_phones_only.csv`; a.click();
+          URL.revokeObjectURL(url);
+        });
+
+        this.els.exportCsvBtn.addEventListener("click", async () => {
+          const base = this.state.fileName.replace(/\.[^.]+$/, "") || "cleaned_phone";
+          const rows = this.state.exportRowsFull;
+
+          this.els.exportCsvBtn.disabled = true;
+          try {
+            await FileService.downloadCsv(rows, `${base}_cleaned.csv`, {
+              sanitizeFn: this.els.sanitizeTextToggle.checked ? (v) => this.sanitizeTextValue(v) : null,
+              onProgress: (done, total) => {
+                const percent = total ? (done / total) * 100 : 100;
+                this.setProgress(percent, `导出中：${done.toLocaleString()} / ${total.toLocaleString()}`);
+              }
+            });
+            this.setProgress(100, "导出完成");
+          } catch (e) {
+            alert(`导出失败：${e.message || e}`);
+          } finally {
+            this.els.exportCsvBtn.disabled = false;
+          }
+        });
+      },
+
+      async selectOutputDirectory() {
+        if (!window.showDirectoryPicker) {
+          alert("当前浏览器不支持直接选择输出目录，请使用 Chrome 或 Edge，或改用本地脚本。");
+          return;
+        }
+
+        try {
+          this.state.outputDirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+          this.state.outputCountryDirHandle = null;
+          this.els.outputDirInfo.textContent = `已选择输出目录：${this.state.outputDirHandle.name} / Cleanedforcheck / 对应国家文件夹`;
+        } catch (e) {
+          if (e && e.name !== "AbortError") {
+            alert(`选择输出目录失败：${e.message || e}`);
+          }
+        }
+      },
+
+      async ensureOutputCountryDir() {
+        const defaultCountryCode = this.els.countryCodeSelect.value || "";
+        if (!defaultCountryCode) {
+          throw new Error("请先选择默认国家，系统会按该国家创建输出文件夹。");
+        }
+        if (!this.state.outputDirHandle) {
+          throw new Error("请先选择输出目录。");
+        }
+
+        const cleanedRoot = await this.state.outputDirHandle.getDirectoryHandle("Cleanedforcheck", { create: true });
+        const countryFolderName = PhoneCleaner.getCountryFolderName
+          ? PhoneCleaner.getCountryFolderName(defaultCountryCode)
+          : this.getCountryFolderName(defaultCountryCode);
+        this.state.outputCountryDirHandle = await cleanedRoot.getDirectoryHandle(countryFolderName, { create: true });
+        return this.state.outputCountryDirHandle;
+      },
+
+      async ensureCleanedRootDir() {
+        if (!this.state.outputDirHandle) {
+          throw new Error("请先选择输出目录。");
+        }
+        return await this.state.outputDirHandle.getDirectoryHandle("Cleanedforcheck", { create: true });
+      },
+
+      getCountryFolderName(countryCode) {
+        const item = PhoneCleaner.countryMap[countryCode];
+        if (!item) return "未指定_UNKNOWN";
+        return `${item.name}_${item.iso}_${countryCode}`;
+      },
+
+      getBaseFileName() {
+        return (this.state.fileName || "cleaned_phone").replace(/\.[^.]+$/, "") || "cleaned_phone";
+      },
+
+      rowsToCsvText(rows, opts = {}) {
+        const sanitizeFn = opts.sanitize ? (v) => this.sanitizeTextValue(v) : null;
+        const safeRows = Array.isArray(rows) ? rows : [];
+        const headers = [];
+        safeRows.forEach((row) => {
+          Object.keys(row || {}).forEach((key) => {
+            if (!headers.includes(key)) headers.push(key);
+          });
+        });
+
+        const lines = ["\uFEFF" + headers.map((h) => FileService.escapeCsvCell(h)).join(",")];
+        safeRows.forEach((row) => {
+          lines.push(headers.map((h) => {
+            const rawVal = row[h];
+            const val = sanitizeFn ? sanitizeFn(rawVal) : rawVal;
+            return FileService.escapeCsvCell(val);
+          }).join(","));
+        });
+        return lines.join("\r\n") + "\r\n";
+      },
+
+      async writeTextFile(dirHandle, filename, text) {
+        const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(text);
+        await writable.close();
+      },
+
+      async appendStatsSummary(rootHandle, statsRow) {
+        const filename = "数据统计汇总.csv";
+        const headers = [
+          "来源名称",
+          "leads 获取总数",
+          "手机号数（非空值）",
+          "漏斗1 手机号非空留存率",
+          "有效手机号（清洗后为有效手机号或 landline）",
+          "漏斗2 清洗有效留存率",
+          "上传+52号码总数",
+          "漏斗3 WA待检留存率",
+          "WA验证通过数",
+          "WA 筛出率",
+          "数据质量说明"
+        ];
+        const line = headers.map((h) => FileService.escapeCsvCell(statsRow[h])).join(",");
+        let existing = "";
+
+        try {
+          const fileHandle = await rootHandle.getFileHandle(filename, { create: false });
+          const file = await fileHandle.getFile();
+          existing = await file.text();
+        } catch (e) {
+          existing = "";
+        }
+
+        const hasContent = existing.replace(/^\uFEFF/, "").trim() !== "";
+        const prefix = hasContent ? existing.replace(/\s*$/, "\r\n") : "\uFEFF" + headers.map((h) => FileService.escapeCsvCell(h)).join(",") + "\r\n";
+        await this.writeTextFile(rootHandle, filename, prefix + line + "\r\n");
+      },
+
+      buildWaCandidateRows(rows) {
+        if (window.PhoneCleanerCore?.LeadCleaner) {
+          return window.PhoneCleanerCore.LeadCleaner.buildWaCandidateRows(rows, PhoneCleaner.getIsoByCode(this.els.countryCodeSelect.value || ""));
+        }
+
+        const allowedTypes = new Set(["MOBILE", "FIXED_LINE_OR_MOBILE"]);
+        const countryISO = PhoneCleaner.getIsoByCode(this.els.countryCodeSelect.value || "");
+        const seen = new Set();
+        const out = [];
+        for (const row of rows || []) {
+          const phone = String(row.standard_phone_number ?? "").replace(/^\+/, "").trim();
+          if (!phone) continue;
+          if (countryISO && String(row.detected_country || "").trim() !== countryISO) continue;
+          if (!allowedTypes.has(String(row.phone_type || "").trim())) continue;
+          if (seen.has(phone)) continue;
+          seen.add(phone);
+          out.push({ Number: phone });
+        }
+        return out;
+      },
+
+      buildWaTxt(rows) {
+        if (window.PhoneCleanerCore?.LeadCleaner) {
+          return window.PhoneCleanerCore.LeadCleaner.buildWaTxt(rows);
+        }
+        return rows.map((r) => String(r.Number ?? "").trim()).filter(Boolean).join("\n") + "\n";
+      },
+
+      isValidMobileOrLandline(cleaned) {
+        if (window.PhoneCleanerCore?.LeadCleaner) {
+          return window.PhoneCleanerCore.LeadCleaner.isValidMobileOrLandline(cleaned);
+        }
+        const status = String(cleaned?.["状态"] || "");
+        const phoneType = String(cleaned?.["号码类型"] || "").trim();
+        return status.startsWith("有效") && ["MOBILE", "FIXED_LINE", "FIXED_LINE_OR_MOBILE"].includes(phoneType);
+      },
+
+      buildStatsRow(stats) {
+        if (window.PhoneCleanerCore?.LeadCleaner) {
+          return window.PhoneCleanerCore.LeadCleaner.buildStatsRow(stats);
+        }
+        const waUploadCount = Number(stats.waUploadCount || 0);
+        const hasWaResult = stats.waPassedCount !== null && stats.waPassedCount !== undefined && stats.waPassedCount !== "";
+        const waPassedCount = hasWaResult ? Number(stats.waPassedCount || 0) : "";
+        const totalRows = Number(stats.totalRows || 0);
+        const nonEmptyPhoneCount = Number(stats.nonEmptyPhoneCount || 0);
+        const validMobileOrLandlineCount = Number(stats.validMobileOrLandlineCount || 0);
+        const rate = (n, d) => d ? `${((n / d) * 100).toFixed(2)}%` : "";
+        return {
+          "来源名称": String(stats.sourceName || ""),
+          "leads 获取总数": totalRows,
+          "手机号数（非空值）": nonEmptyPhoneCount,
+          "漏斗1 手机号非空留存率": rate(nonEmptyPhoneCount, totalRows),
+          "有效手机号（清洗后为有效手机号或 landline）": validMobileOrLandlineCount,
+          "漏斗2 清洗有效留存率": rate(validMobileOrLandlineCount, nonEmptyPhoneCount),
+          "上传+52号码总数": waUploadCount,
+          "漏斗3 WA待检留存率": rate(waUploadCount, validMobileOrLandlineCount),
+          "WA验证通过数": waPassedCount,
+          "WA 筛出率": hasWaResult && waUploadCount > 0 ? `${((waPassedCount / waUploadCount) * 100).toFixed(2)}%` : "",
+          "数据质量说明": String(stats.dataQualityNote || stats.qualityNote || "")
+        };
+      },
+
+      async writeCleaningOutputs() {
+        const dirHandle = await this.ensureOutputCountryDir();
+        const cleanedRootHandle = await this.ensureCleanedRootDir();
+        const base = this.getBaseFileName();
+        const rows = this.state.exportRowsFull || [];
+        const cleanCsv = this.rowsToCsvText(rows, { sanitize: this.els.sanitizeTextToggle.checked });
+        await this.writeTextFile(dirHandle, `${base}_cleaned.csv`, cleanCsv);
+
+        const waCandidates = this.buildWaCandidateRows(rows);
+        await this.writeTextFile(dirHandle, `${base}_wa待校验.txt`, this.buildWaTxt(waCandidates));
+        this.state.runStatsBase = {
+          ...(this.state.runStatsBase || {}),
+          waUploadCount: waCandidates.length,
+          waPassedCount: ""
+        };
+        return { dirHandle, cleanedRootHandle, base, waCandidates };
+      },
+
+      async maybeRunWaVerification(outputContext) {
+        if (!this.els.autoWaToggle.checked) return { waPassedCount: "" };
+
+        if (!outputContext.waCandidates.length) {
+          alert("清洗完成，但没有符合 WhatsApp 校验条件的手机号。");
+          return { waPassedCount: "" };
+        }
+
+        const token = prompt("请输入 TH333 token（仅本次使用，不会保存）");
+        if (!token) {
+          this.setProgress(100, "清洗完成；已跳过 WhatsApp 校验");
+          return { waPassedCount: "" };
+        }
+
+        try {
+          const task = await this.createTh333Task({
+            token,
+            countryISO: PhoneCleaner.getIsoByCode(this.els.countryCodeSelect.value || ""),
+            taskName: `${outputContext.base}_wa_${Date.now()}`,
+            filename: `${outputContext.base}_wa待校验.txt`,
+            text: this.buildWaTxt(outputContext.waCandidates)
+          });
+
+          this.setProgress(100, `WhatsApp 校验任务已提交：${task.taskId || ""}`);
+          const progress = await this.pollTh333Task(token, task.taskId);
+          if (progress.taskState !== "Finish") {
+            throw new Error(`任务未完成，状态：${progress.taskState || "未知"}`);
+          }
+
+          const waRows = await this.downloadTh333Result(token, task.taskId);
+          const mergedRows = window.PhoneCleanerCore?.LeadCleaner
+            ? window.PhoneCleanerCore.LeadCleaner.applyWaResultsToLeads(this.state.exportRowsFull, waRows)
+            : this.applyWaResultsToLeads(this.state.exportRowsFull, waRows);
+          const numberRows = window.PhoneCleanerCore?.LeadCleaner
+            ? window.PhoneCleanerCore.LeadCleaner.waRowsToCsvRows(waRows)
+            : this.waRowsToCsvRows(waRows);
+          const waPassedCount = numberRows.filter((row) => String(row.is_wa) === "1").length;
+
+          this.state.exportRowsFull = mergedRows;
+          await this.writeTextFile(outputContext.dirHandle, `${outputContext.base}_wa已校验.csv`, this.rowsToCsvText(mergedRows, { sanitize: this.els.sanitizeTextToggle.checked }));
+          await this.writeTextFile(outputContext.dirHandle, `${outputContext.base}_wa已校验_号码结果.csv`, this.rowsToCsvText(numberRows, { sanitize: true }));
+          this.state.runStatsBase = { ...(this.state.runStatsBase || {}), waPassedCount };
+          this.setProgress(100, "清洗完成，WhatsApp 校验结果已回填 is_wa");
+          return { waPassedCount };
+        } catch (e) {
+          alert(`WhatsApp 校验未完成：${e.message || e}\n\n如果浏览器拦截接口请求，请使用本地脚本继续校验。`);
+          this.setProgress(100, "清洗完成；WhatsApp 校验未完成，可改用本地脚本");
+          return { waPassedCount: "" };
+        }
+      },
+
+      async createTh333Task({ token, countryISO, taskName, filename, text }) {
+        const body = new FormData();
+        body.append("file", new Blob([text], { type: "text/plain;charset=utf-8" }), filename);
+        body.append("country", countryISO);
+        body.append("taskType", "wsValid");
+        body.append("taskName", taskName);
+
+        const res = await fetch("https://api.th333.cc/api/task/create", {
+          method: "POST",
+          headers: { token },
+          body
+        });
+        const json = await res.json();
+        if (!res.ok || json.code !== 0) {
+          throw new Error(json.message || res.statusText || "提交任务失败");
+        }
+        return json.data || {};
+      },
+
+      async pollTh333Task(token, taskId) {
+        if (!taskId) throw new Error("TH333 未返回 taskId");
+        while (true) {
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+          const res = await fetch(`https://api.th333.cc/api/task/progress?taskId=${encodeURIComponent(taskId)}`, {
+            headers: { token }
+          });
+          const json = await res.json();
+          if (!res.ok || json.code !== 0) {
+            throw new Error(json.message || res.statusText || "查询任务失败");
+          }
+          const data = json.data || {};
+          this.setProgress(100, `WhatsApp 校验中：${(data.taskProgress || 0).toLocaleString()} / ${(data.taskTotal || 0).toLocaleString()} (${data.taskState || ""})`);
+          if (["Finish", "Fail", "Close"].includes(data.taskState)) return data;
+        }
+      },
+
+      async downloadTh333Result(token, taskId) {
+        const res = await fetch(`https://api.th333.cc/api/task/result?taskId=${encodeURIComponent(taskId)}`, {
+          headers: { token }
+        });
+        if (!res.ok) {
+          throw new Error(`下载结果失败：${res.status} ${res.statusText}`);
+        }
+
+        const contentType = res.headers.get("content-type") || "";
+        const arrBuf = await res.arrayBuffer();
+        const bytes = new Uint8Array(arrBuf.slice(0, 2));
+        const isWorkbook = contentType.includes("spreadsheet") || (bytes[0] === 0x50 && bytes[1] === 0x4b);
+        if (isWorkbook) {
+          const wb = XLSX.read(arrBuf, { type: "array" });
+          const sheetName = wb.SheetNames[0];
+          const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "", blankrows: false });
+          return window.PhoneCleanerCore?.LeadCleaner
+            ? window.PhoneCleanerCore.LeadCleaner.parseWaResultRows(rows)
+            : rows;
+        }
+
+        const text = new TextDecoder("utf-8").decode(arrBuf);
+        return window.PhoneCleanerCore?.LeadCleaner
+          ? window.PhoneCleanerCore.LeadCleaner.parseWaResultRows(text)
+          : [];
+      },
+
+      applyWaResultsToLeads(leadsRows, waRows) {
+        const map = new Map();
+        (waRows || []).forEach((row) => {
+          const number = String(row.Number ?? row.number ?? "").replace(/\D+/g, "");
+          const activated = String(row.activated ?? row.Activated ?? "").trim().toLowerCase();
+          if (number) map.set(number, activated === "yes" ? "1" : activated === "no" ? "0" : "");
+        });
+        return (leadsRows || []).map((row) => {
+          const phone = String(row.standard_phone_number ?? "").replace(/\D+/g, "");
+          return { ...row, is_wa: map.has(phone) ? map.get(phone) : "" };
+        });
+      },
+
+      waRowsToCsvRows(waRows) {
+        return (waRows || []).map((row) => {
+          const activated = String(row.activated ?? row.Activated ?? "").trim().toLowerCase();
+          return {
+            Number: String(row.Number ?? row.number ?? "").replace(/\D+/g, ""),
+            activated,
+            is_wa: activated === "yes" ? "1" : activated === "no" ? "0" : ""
+          };
+        });
+      },
+
+      sanitizeRowsForExport(rows) {
+        return rows.map((row) => {
+          const cleanRow = {};
+          Object.keys(row).forEach((key) => {
+            cleanRow[key] = this.sanitizeTextValue(row[key]);
+          });
+          return cleanRow;
+        });
+      },
+
+      sanitizeTextValue(value) {
+        const text = String(value ?? "");
+        return text
+          .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, "")
+          .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "")
+          .replace(/[\u200D\uFE0E\uFE0F]/g, "")
+          .replace(/\s{2,}/g, " ")
+          .trim();
+      },
+
+      async handleFile(file) {
+        if (!/\.(xlsx|csv)$/i.test(file.name)) {
+          alert("请上传 .xlsx 或 .csv 文件");
+          return;
+        }
+
+        this.setProgress(0, "正在读取文件...");
+        const { rows, sheetName, debug } = await FileService.readSpreadsheet(file);
+
+        if (!rows.length) {
+          const debugMsg = `文件没有可读取的数据行\nSheet: ${sheetName || ""}\n!ref: ${(debug && debug.ref) || ""}\n!fullref: ${(debug && debug.fullref) || ""}\nCells: ${(debug && debug.totalCells) || 0}`;
+          alert(debugMsg);
+          return;
+        }
+
+        this.state.rows = rows;
+        this.state.columns = Object.keys(rows[0]);
+        this.state.fileName = file.name;
+        this.state.exportRowsFull = [];
+        this.state.semanticMap = this.autoDetectSemanticColumns(this.state.columns, rows.slice(0, 20));
+        this.state.runStatsBase = null;
+
+        const readSource = (debug && debug.source) || (sheetName || "");
+        const readEncoding = (debug && debug.encoding) ? `，编码 ${debug.encoding}` : "";
+        this.els.fileInfo.textContent = `文件：${file.name}，共 ${rows.length.toLocaleString()} 行（读取通道：${readSource}${readEncoding}）`;
+        this.renderColumnSelect();
+        this.state.semanticMap.phone_number = this.els.phoneColumnSelect.value || this.state.semanticMap.phone_number || "";
+        this.renderMappingInfo();
+        this.renderPreview(rows.slice(0, 5));
+        this.renderResult([]);
+        this.renderStats(null);
+        this.renderFailureReasonStats(null);
+
+        this.els.runBtn.disabled = false;
+        this.els.exportCsvBtn.disabled = true;
+        this.els.exportPhoneOnlyBtn.disabled = true;
+
+        const inferredCode = this.inferCountryHintFromFileName(file.name);
+        this.els.countryCodeSelect.value = inferredCode || "";
+
+        this.setProgress(0, "文件已加载，待开始清洗");
+      },
+
+      inferCountryHintFromFileName(fileName) {
+        const name = String(fileName || "").toLowerCase();
+        if (/南非|south\s*africa|za\b/.test(name)) return "27";
+        if (/马来|malaysia|my\b/.test(name)) return "60";
+        if (/尼日利亚|nigeria|ng\b/.test(name)) return "234";
+        if (/墨西哥|mexico|mx\b/.test(name)) return "52";
+        if (/越南|vietnam|vn\b/.test(name)) return "84";
+        if (/印尼|印度尼西亚|indonesia|id\b/.test(name)) return "62";
+        if (/巴西|brazil|br\b/.test(name)) return "55";
+        if (/加纳|ghana|gh\b/.test(name)) return "233";
+        if (/肯尼亚|kenya|ke\b/.test(name)) return "254";
+        return "";
+      },
+
+      inferCountryHintFromText(text) {
+        const val = String(text || "").toLowerCase();
+        if (!val) return "";
+
+        if (/\.(co|org|net|gov|ac)\.za\b|\.za\b|south\s*africa|南非/.test(val)) return "27";
+        if (/\.(com|org|net|gov|edu)\.my\b|\.my\b|malaysia|马来西亚|马来/.test(val)) return "60";
+        if (/\.(com|org|net|gov|edu)\.ng\b|\.ng\b|nigeria|尼日利亚/.test(val)) return "234";
+        if (/\.(com|org|net|gob)\.mx\b|\.mx\b|mexico|墨西哥/.test(val)) return "52";
+        if (/\.(com|org|net|gov|edu)\.vn\b|\.vn\b|vietnam|越南/.test(val)) return "84";
+        if (/\.(co|or|net|web|sch)\.id\b|\.id\b|indonesia|印度尼西亚|印尼/.test(val)) return "62";
+        if (/\.(com|org|net|gov|edu)\.br\b|\.br\b|brazil|巴西/.test(val)) return "55";
+        if (/\.(com|org|net|gov|edu)\.gh\b|\.gh\b|ghana|加纳/.test(val)) return "233";
+        if (/\.(co|or|net|go)\.ke\b|\.ke\b|kenya|肯尼亚/.test(val)) return "254";
+        return "";
+      },
+
+      inferCountryHintFromRow(sourceRow) {
+        const keys = Object.keys(sourceRow || {});
+        const siteCols = keys.filter((k) => /company_website|company_href|website|site|url|href|domain/i.test(k));
+        const semanticWebsiteCol = this.state.semanticMap?.company_website || "";
+        const orderedCols = semanticWebsiteCol ? [semanticWebsiteCol, ...siteCols.filter((c) => c !== semanticWebsiteCol)] : siteCols;
+
+        for (const col of orderedCols) {
+          const hit = this.inferCountryHintFromText(sourceRow[col]);
+          if (hit) return hit;
+        }
+
+        return "";
+      },
+
+      autoDetectSemanticColumns(columns, sampleRows) {
+        const map = {
+          company_name: this.detectFieldColumn(columns, sampleRows, {
+            headerKeywords: [/company/i, /company.?name/i, /企业名/, /公司名/, /公司名称/, /客户名/, /商户名/],
+            valueHints: [/有限公司/, /集团/, /公司/, /corp/i, /inc/i, /ltd/i]
+          }),
+          industry: this.detectIndustryColumn(columns, sampleRows),
+          company_address: this.detectFieldColumn(columns, sampleRows, {
+            headerKeywords: [/address/i, /addr/i, /location/i, /街道/, /地址/, /办公地/, /所在地/],
+            valueHints: [/road|street|ave|city|district|no\.|#|省|市|区|路|号/i]
+          }),
+          phone_number: this.autoDetectPhoneColumn(columns, sampleRows),
+          company_website: this.detectFieldColumn(columns, sampleRows, {
+            headerKeywords: [/website/i, /site/i, /url/i, /web/i, /官网/, /网址/, /链接/],
+            valueHints: [/https?:\/\//i, /www\./i, /\.[a-z]{2,}$/i]
+          }),
+          email: this.detectFieldColumn(columns, sampleRows, {
+            headerKeywords: [/email/i, /mail/i, /邮箱/],
+            valueHints: [/@/]
+          })
+        };
+        return map;
+      },
+
+      detectIndustryColumn(columns, sampleRows) {
+        // 按用户指定优先级：行业 > 企业type > 企业描述
+        const priorityRules = [
+          [/^行业$/i, /行业/, /industry/i, /sector/i, /vertical/i],
+          [/企业\s*type/i, /企业类型/, /公司类型/, /type/i, /business\s*type/i],
+          [/企业描述/, /公司描述/, /主营/, /description/i, /profile/i]
+        ];
+
+        for (const group of priorityRules) {
+          const hit = columns.find((col) => group.some((re) => re.test(col)));
+          if (hit) return hit;
+        }
+
+        // 无明显列名时，回退到原有样本值特征识别
+        return this.detectFieldColumn(columns, sampleRows, {
+          headerKeywords: [/industry/i, /sector/i, /vertical/i, /行业/, /赛道/, /企业类型/, /type/i, /描述/, /profile/i],
+          valueHints: [/manufactur|retail|tech|software|finance|education|medical|logistics|教育|医疗|制造|电商|物流|贸易/i]
+        });
+      },
+
+      detectFieldColumn(columns, sampleRows, rules) {
+        for (const col of columns) {
+          if (rules.headerKeywords.some((re) => re.test(col))) {
+            return col;
+          }
+        }
+
+        let bestCol = "";
+        let bestScore = 0;
+        for (const col of columns) {
+          const score = sampleRows.reduce((acc, row) => {
+            const value = String(row[col] ?? "").trim();
+            if (!value) return acc;
+            const hit = rules.valueHints.some((re) => re.test(value)) ? 1 : 0;
+            return acc + hit;
+          }, 0);
+          if (score > bestScore) {
+            bestScore = score;
+            bestCol = col;
+          }
+        }
+        return bestScore > 0 ? bestCol : "";
+      },
+
+      renderColumnSelect() {
+        const sel = this.els.phoneColumnSelect;
+        sel.innerHTML = "";
+
+        this.state.columns.forEach((col) => {
+          const option = document.createElement("option");
+          option.value = col;
+          option.textContent = col;
+          sel.appendChild(option);
+        });
+
+        const auto = this.autoDetectPhoneColumn(this.state.columns, this.state.rows.slice(0, 5));
+        sel.value = auto || this.state.columns[0];
+        sel.disabled = false;
+      },
+
+      autoDetectPhoneColumn(columns, sampleRows) {
+        const keywords = [/phone/i, /mobile/i, /tel/i, /手机号/, /手机/, /电话/, /号码/];
+        for (const c of columns) {
+          if (keywords.some((re) => re.test(c))) return c;
+        }
+
+        let best = null;
+        let bestScore = -1;
+        for (const c of columns) {
+          const score = sampleRows.reduce((acc, row) => {
+            const v = String(row[c] ?? "");
+            const digits = v.replace(/\D+/g, "");
+            return acc + (digits.length >= 8 ? 1 : 0);
+          }, 0);
+          if (score > bestScore) {
+            best = c;
+            bestScore = score;
+          }
+        }
+        return best;
+      },
+
+      renderMappingInfo() {
+        const map = this.state.semanticMap || {};
+        const fallback = "未识别";
+        this.els.mappingInfo.textContent = `标准字段映射：company_name→${map.company_name || fallback}；industry→${map.industry || fallback}；company_address→${map.company_address || fallback}；phone_number→${map.phone_number || fallback}；company_website→${map.company_website || fallback}；email→${map.email || fallback}`;
+      },
+
+      renderPreview(sampleRows) {
+        const table = this.els.previewTable;
+        const cols = this.state.columns;
+        const thead = `<thead><tr>${cols.map((c) => `<th>${this.escapeHtml(c)}</th>`).join("")}</tr></thead>`;
+        const tbody = `<tbody>${sampleRows.map((r) => `<tr>${cols.map((c) => `<td>${this.escapeHtml(String(r[c] ?? ""))}</td>`).join("")}</tr>`).join("")}</tbody>`;
+        table.innerHTML = thead + tbody;
+      },
+
+      renderResult(rows) {
+        const table = this.els.resultTable;
+        if (!rows.length) {
+          table.innerHTML = `<thead><tr><th>原始号码</th><th>清洗后号码</th><th>检测国家</th><th>号码类型</th><th>状态</th></tr></thead><tbody><tr><td colspan="5" class="muted">暂无结果</td></tr></tbody>`;
+          return;
+        }
+
+        const head = `<thead><tr><th>原始号码</th><th>清洗后号码</th><th>检测国家</th><th>号码类型</th><th>状态</th></tr></thead>`;
+        const body = `<tbody>${rows.slice(0, 500).map((r) => {
+          const ok = String(r["状态"]).startsWith("有效");
+          return `<tr>
+            <td>${this.escapeHtml(String(r["原始号码"] ?? ""))}</td>
+            <td>${this.escapeHtml(String(r["清洗后号码"] ?? ""))}</td>
+            <td>${this.escapeHtml(String(r["检测国家"] ?? ""))}</td>
+            <td>${this.escapeHtml(String(r["号码类型"] ?? ""))}</td>
+            <td class="${ok ? "status-ok" : "status-bad"}">${this.escapeHtml(String(r["状态"] ?? ""))}</td>
+          </tr>`;
+        }).join("")}</tbody>`;
+        table.innerHTML = head + body;
+      },
+
+      renderStats(stats) {
+        if (!stats) {
+          this.els.stats.innerHTML = "";
+          return;
+        }
+
+        const rate = stats.total ? ((stats.valid / stats.total) * 100).toFixed(2) : "0.00";
+        this.els.stats.innerHTML = `
+          <div class="stat"><div class="label">总行数</div><div class="value">${stats.total.toLocaleString()}</div></div>
+          <div class="stat"><div class="label">号码字段空值</div><div class="value">${(stats.emptyPhones || 0).toLocaleString()}</div></div>
+          <div class="stat"><div class="label">有效数量</div><div class="value">${stats.valid.toLocaleString()}</div></div>
+          <div class="stat"><div class="label">无效数量</div><div class="value">${stats.invalid.toLocaleString()}</div></div>
+          <div class="stat"><div class="label">成功率</div><div class="value">${rate}%</div></div>
+          <div class="stat"><div class="label">去重后号码数</div><div class="value">${(stats.uniquePhones || 0).toLocaleString()}</div></div>
+          <div class="stat"><div class="label">去重移除条数</div><div class="value">${(stats.duplicateRemoved || 0).toLocaleString()}</div></div>
+          ${Object.entries(stats.typeCounts || {}).sort((a,b)=>b[1]-a[1]).map(([t,n])=>`<div class="stat"><div class="label">${t}</div><div class="value">${n.toLocaleString()}</div></div>`).join("")}
+        `;
+      },
+
+      classifyInvalidReason(rawValue, status, defaultCountryCode) {
+        const raw = String(rawValue ?? "").trim();
+        const digits = raw.replace(/\D+/g, "");
+        if (status === "无效-空号" || !raw) return "空号";
+        if (status !== "无效-号段不符") return status || "无效-未知原因";
+        if (!digits) return "号段不符-无可识别数字";
+        if (digits.length < 6) return "号段不符-位数过短";
+        if (digits.length > 15) return "号段不符-位数过长";
+        if (defaultCountryCode === "52") {
+          if (/^52/.test(digits) && !/^521?\d{10}$/.test(digits)) return "号段不符-墨西哥号码应为52+10位本地号";
+          if (!/^52/.test(digits) && digits.length !== 10) return "号段不符-墨西哥本地号应为10位";
+        }
+        if (/^00\d+/.test(digits) && digits.length < 10) return "号段不符-国际前缀后位数不足";
+        if (/^\d{10,15}$/.test(digits) && !defaultCountryCode && !/^(1|52|55|60|62|84|86|233|234|254|27)/.test(digits)) return "号段不符-国家码未识别";
+        return "号段不符-库未识别该地区号段";
+      },
+
+      buildFailureReasonStats(results, topN = 5, sampleN = 10) {
+        const total = Array.isArray(results) ? results.length : 0;
+        const bucket = new Map();
+        let invalidTotal = 0;
+
+        for (let i = 0; i < total; i += 1) {
+          const row = results[i] || {};
+          const status = String(row["状态"] || "").trim();
+          if (status.startsWith("有效")) continue;
+
+          invalidTotal += 1;
+          const reason = status || "无效-未知原因";
+          if (!bucket.has(reason)) {
+            bucket.set(reason, { reason, count: 0, samples: [] });
+          }
+
+          const item = bucket.get(reason);
+          item.count += 1;
+          if (item.samples.length < sampleN) {
+            item.samples.push({
+              original: String(row["原始号码"] ?? ""),
+              cleaned: String(row["清洗后号码"] ?? "")
+            });
+          }
+        }
+
+        const topItems = Array.from(bucket.values())
+          .sort((a, b) => b.count - a.count)
+          .slice(0, topN)
+          .map((x) => ({
+            ...x,
+            ratio: invalidTotal ? (x.count / invalidTotal) : 0
+          }));
+
+        return { invalidTotal, topItems };
+      },
+
+      renderFailureReasonStats(summary) {
+        const panel = this.els.failureStatsPanel;
+        if (!summary || !summary.invalidTotal) {
+          panel.style.display = "none";
+          panel.innerHTML = "";
+          return;
+        }
+
+        const rows = summary.topItems.map((item, idx) => {
+          const ratioPct = (item.ratio * 100).toFixed(2);
+          const samplesText = item.samples.map((s, i) => `${i + 1}. 原始: ${s.original || "(空)"} | 清洗后: ${s.cleaned || "(空)"}`).join("\n");
+          return `
+            <div class="failure-item">
+              <div class="failure-title">#${idx + 1} ${this.escapeHtml(item.reason)}</div>
+              <div class="failure-meta">数量：${item.count.toLocaleString()}，占无效比：${ratioPct}%</div>
+              <div class="failure-samples">示例前${item.samples.length}条：\n${this.escapeHtml(samplesText)}</div>
+            </div>
+          `;
+        }).join("");
+
+        panel.innerHTML = `
+          <h4>失败原因分布统计（Top ${summary.topItems.length}）</h4>
+          ${rows}
+        `;
+        panel.style.display = "block";
+      },
+
+      setProgress(percent, text) {
+        this.els.progressBar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+        this.els.progressText.textContent = text;
+      },
+
+      async runCleaning() {
+        const phoneCol = this.els.phoneColumnSelect.value;
+        if (!phoneCol) {
+          alert("请先选择手机号列");
+          return;
+        }
+        const selectedCountryCode = this.els.countryCodeSelect.value || "";
+        if (!selectedCountryCode) {
+          alert("请先选择默认国家，系统会按该国家清洗并创建输出文件夹。");
+          return;
+        }
+        if (!this.state.outputDirHandle) {
+          alert("请先选择输出目录。");
+          return;
+        }
+
+        this.els.runBtn.disabled = true;
+        this.els.exportCsvBtn.disabled = true;
+        this.els.exportPhoneOnlyBtn.disabled = true;
+        this.state.semanticMap.phone_number = phoneCol;
+        this.renderMappingInfo();
+
+        const total = this.state.rows.length;
+        const exportRows = new Array(total);
+        const previewRows = []; // 仅保留前 500 行用于预览，不构建全量 out 数组
+        const defaultCountryCode = selectedCountryCode;
+        const defaultCountryISO  = PhoneCleaner.getIsoByCode(defaultCountryCode);
+        const typeFilter   = this.els.typeFilter.value   || "all";
+        const outputFormat = this.els.outputFormat.value || "E164";
+
+        // 内联统计：避免第二次全量遍历
+        let validCount = 0, invalidCount = 0, emptyPhoneCount = 0, validMobileOrLandlineCount = 0;
+        const typeCounts = {};
+        const failureBucket = new Map();
+        let failureStatsInvalidCount = 0;
+        const SAMPLE_N = 10, TOP_N = 5;
+
+        // 分片处理：避免主线程长时间阻塞
+        const chunkSize = 1000;
+        for (let i = 0; i < total; i += chunkSize) {
+          const end = Math.min(i + chunkSize, total);
+          for (let j = i; j < end; j++) {
+            const sourceRow = this.state.rows[j];
+            const raw = sourceRow[phoneCol];
+            if (String(raw ?? "").trim() === "") emptyPhoneCount++;
+            const cleaned = PhoneCleaner.cleanOne(raw, { defaultCountryCode, defaultCountryISO, typeFilter, outputFormat });
+            if (this.isValidMobileOrLandline(cleaned)) validMobileOrLandlineCount += 1;
+
+            exportRows[j] = this.buildExportRow(sourceRow, cleaned);
+            // 立即释放原始行引用，逐行回收内存
+            this.state.rows[j] = null;
+
+            // 内联统计
+            const status = String(cleaned["状态"] || "");
+            if (status.startsWith("有效")) {
+              validCount++;
+              const t = String(cleaned["号码类型"] || "").trim();
+              if (t) typeCounts[t] = (typeCounts[t] || 0) + 1;
+            } else {
+              invalidCount++;
+              if (status !== "无效-空号") {
+                failureStatsInvalidCount++;
+                const reason = this.classifyInvalidReason(cleaned["原始号码"], status, defaultCountryCode);
+                if (!failureBucket.has(reason)) failureBucket.set(reason, { reason, count: 0, samples: [] });
+                const item = failureBucket.get(reason);
+                item.count++;
+                if (item.samples.length < SAMPLE_N) {
+                  item.samples.push({ original: String(cleaned["原始号码"] ?? ""), cleaned: String(cleaned["清洗后号码"] ?? "") });
+                }
+              }
+            }
+
+            if (previewRows.length < 500) previewRows.push(cleaned);
+          }
+
+          this.setProgress((end / total) * 100, `清洗中：${end.toLocaleString()} / ${total.toLocaleString()}`);
+          await new Promise((r) => setTimeout(r, 0));
+        }
+
+        // 全量原始数组释放
+        this.state.rows = null;
+
+        const dedup = this.deduplicateByStandardPhone(exportRows);
+        this.state.exportRowsFull = dedup.fullRows;
+        this.state.runStatsBase = {
+          sourceName: this.state.fileName,
+          totalRows: total,
+          nonEmptyPhoneCount: total - emptyPhoneCount,
+          validMobileOrLandlineCount,
+          waUploadCount: 0,
+          waPassedCount: ""
+        };
+        this.renderResult(previewRows);
+
+        this.renderStats({
+          total,
+          emptyPhones: emptyPhoneCount,
+          valid: validCount,
+          invalid: invalidCount,
+          uniquePhones: dedup.uniqueCount,
+          duplicateRemoved: dedup.duplicateRemoved,
+          typeCounts
+        });
+
+        const topItems = Array.from(failureBucket.values())
+          .sort((a, b) => b.count - a.count).slice(0, TOP_N)
+          .map(x => ({ ...x, ratio: failureStatsInvalidCount ? x.count / failureStatsInvalidCount : 0 }));
+        this.renderFailureReasonStats({ invalidTotal: failureStatsInvalidCount, topItems });
+
+        try {
+          const outputContext = await this.writeCleaningOutputs();
+          this.setProgress(100, "清洗完成，已写入 cleaned 和 WA 待校验文件");
+          const waResult = await this.maybeRunWaVerification(outputContext);
+          this.state.runStatsBase = {
+            ...(this.state.runStatsBase || {}),
+            waPassedCount: waResult?.waPassedCount ?? ""
+          };
+          await this.appendStatsSummary(outputContext.cleanedRootHandle, this.buildStatsRow(this.state.runStatsBase));
+        } catch (e) {
+          alert(`写入输出文件失败：${e.message || e}`);
+          this.setProgress(100, "清洗完成，但输出文件写入失败");
+        }
+        this.els.exportCsvBtn.disabled = false;
+        this.els.exportPhoneOnlyBtn.disabled = false;
+        this.els.runBtn.disabled = false;
+      },
+
+      deduplicateByStandardPhone(rows) {
+        const seen = new Set();
+        const fullRows = [];
+        let duplicateRemoved = 0;
+
+        for (const row of rows) {
+          const standardPhone = String(row.standard_phone_number ?? "").trim();
+
+          // 无清洗号码（通常为无效）时保留原行，不参与去重键。
+          if (!standardPhone) {
+            fullRows.push(row);
+            continue;
+          }
+
+          if (seen.has(standardPhone)) {
+            duplicateRemoved += 1;
+            continue;
+          }
+
+          seen.add(standardPhone);
+          fullRows.push(row);
+        }
+
+        const uniqueCount = seen.size;
+
+        return { fullRows, uniqueCount, duplicateRemoved };
+      },
+
+      buildExportRow(sourceRow, cleaned) {
+        const map = this.state.semanticMap || {};
+        const standardFields = {
+          company_name: map.company_name ? String(sourceRow[map.company_name] ?? "") : "",
+          industry: map.industry ? String(sourceRow[map.industry] ?? "") : "",
+          company_address: map.company_address ? String(sourceRow[map.company_address] ?? "") : "",
+          phone_number: map.phone_number ? String(sourceRow[map.phone_number] ?? "") : "",
+          company_website: map.company_website ? String(sourceRow[map.company_website] ?? "") : "",
+          email: map.email ? String(sourceRow[map.email] ?? "") : "",
+          standard_phone_number: String(cleaned["清洗后号码"] ?? ""),
+          detected_country: String(cleaned["检测国家"] ?? ""),
+          phone_type: String(cleaned["号码类型"] ?? "")
+        };
+
+        const merged = { ...standardFields };
+        Object.keys(sourceRow).forEach((key) => {
+          // 保留源文件全部字段：若与标准字段重名，则以 __source 后缀保留原列。
+          if (key in merged) {
+            merged[`${key}__source`] = sourceRow[key];
+            return;
+          }
+          merged[key] = sourceRow[key];
+        });
+        return merged;
+      },
+
+      escapeHtml(s) {
+        return s
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+    };
+
+    App.init();
+  </script>
+</body>
+</html>
