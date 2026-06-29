@@ -55,7 +55,7 @@
       if (!s) return { str: "", withPlus: false };
 
       const rawDigitsForMx = s.replace(/\D+/g, "");
-      if (defaultCountryCode === "52" && !s.startsWith("+") && rawDigitsForMx.startsWith("0")) {
+      if (defaultCountryCode === "52" && !s.startsWith("+") && rawDigitsForMx.startsWith("0") && !rawDigitsForMx.startsWith("00")) {
         return { str: "", withPlus: false, badFormat: true };
       }
 
@@ -81,7 +81,8 @@
       if (!defaultCountryCode && /^521\d{10}$/.test(local)) return { str: local.replace(/^521/, "52"), withPlus: false };
 
       if (defaultCountryCode) {
-        return { str: defaultCountryCode + local, withPlus: false };
+        // 直接返回 +CC + local，避免后续再按 ISO 解析导致重复国家码（如 234234…）
+        return { str: "+" + defaultCountryCode + local, withPlus: true };
       }
       return { str: local, withPlus: false };
     },
@@ -266,7 +267,8 @@
         if (rawDigits && !rawDigits.startsWith("0")) {
           try {
             const p = parseFn("+" + rawDigits);
-            if (p && (p.isValid() || p.isPossible())) parsed = p;
+            const accept = (pp) => defaultCountryISO === "NG" ? pp.isValid() : (pp.isValid() || pp.isPossible());
+            if (p && accept(p)) parsed = p;
           } catch (_) {}
         }
       }
@@ -275,14 +277,16 @@
         const attemptStr = withPlus ? preprocessed : "+" + preprocessed;
         try {
           const p = parseFn(attemptStr);
-          if (p && (p.isValid() || p.isPossible())) parsed = p;
+          const accept = (pp) => defaultCountryISO === "NG" ? pp.isValid() : (pp.isValid() || pp.isPossible());
+          if (p && accept(p)) parsed = p;
         } catch (_) {}
       }
 
       if (!parsed && defaultCountryISO) {
         try {
           const p = parseFn(preprocessed, defaultCountryISO);
-          if (p && (p.isValid() || p.isPossible())) parsed = p;
+          const accept = (pp) => defaultCountryISO === "NG" ? pp.isValid() : (pp.isValid() || pp.isPossible());
+          if (p && accept(p)) parsed = p;
         } catch (_) {}
       }
 
