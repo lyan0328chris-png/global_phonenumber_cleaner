@@ -42,6 +42,34 @@
       return `${country.name}_${country.iso}_${code}`;
     },
 
+    getCountryCodeFromDigits(digits) {
+      const codes = Object.keys(this.countryMap).sort((a, b) => b.length - a.length);
+      return codes.find((code) => String(digits || "").startsWith(code)) || "";
+    },
+
+    normalizeLocalTrunkPrefix(local, countryCode) {
+      const digits = String(local || "");
+      if (!countryCode || !digits.startsWith("0")) return digits;
+      if (countryCode === "52" || countryCode === "1") return digits;
+
+      if (countryCode === "55") {
+        const withoutCarrier = digits.match(/^0\d{2}(\d{10,11})$/);
+        if (withoutCarrier) return withoutCarrier[1];
+        const withoutTrunk = digits.match(/^0(\d{10,11})$/);
+        if (withoutTrunk) return withoutTrunk[1];
+        return digits;
+      }
+
+      return digits.slice(1);
+    },
+
+    normalizeInternationalTrunkPrefix(digits) {
+      const countryCode = this.getCountryCodeFromDigits(digits);
+      if (!countryCode) return digits;
+      const local = String(digits).slice(countryCode.length);
+      return countryCode + this.normalizeLocalTrunkPrefix(local, countryCode);
+    },
+
     preprocess(raw, defaultCountryCode) {
       let s = String(raw ?? "").trim()
         .replace(/\s+(?:ext\.?|extension|poste)\s*\d+\s*$/i, "")
@@ -63,7 +91,7 @@
         const digits = s.slice(1).replace(/\D+/g, "");
         if (!digits) return { str: "", withPlus: false };
         const mxNormalized = digits.replace(/^521(\d{10})$/, "52$1");
-        const stripped = mxNormalized.replace(/^(\d{1,3})0(\d{9,11})$/, (_, cc, local) => cc + local);
+        const stripped = this.normalizeInternationalTrunkPrefix(mxNormalized);
         return { str: "+" + stripped, withPlus: true };
       }
 
@@ -76,7 +104,7 @@
       }
 
       let local = digits;
-      if (defaultCountryCode !== "52" && local.startsWith("0")) local = local.slice(1);
+      local = this.normalizeLocalTrunkPrefix(local, defaultCountryCode);
       if (defaultCountryCode === "52" && /^521\d{10}$/.test(local)) local = local.replace(/^521/, "");
       if (!defaultCountryCode && /^521\d{10}$/.test(local)) return { str: local.replace(/^521/, "52"), withPlus: false };
 
@@ -106,7 +134,25 @@
       }
     },
 
-    fallbackMexicoNumber(rawValue, defaultCountryCode, outputFormat) {
+    classifyPhoneType(phoneType, strictClassification) {
+      if (!strictClassification) return phoneType || "";
+      const map = {
+        MOBILE: "valid_mobile",
+        FIXED_LINE: "valid_fixed_line",
+        FIXED_LINE_OR_MOBILE: "valid_ambiguous",
+        VOIP: "valid_voip",
+        TOLL_FREE: "valid_toll_free",
+        PREMIUM_RATE: "valid_premium_rate",
+        SHARED_COST: "valid_shared_cost",
+        PERSONAL_NUMBER: "valid_personal_number",
+        PAGER: "valid_pager",
+        UAN: "valid_uan",
+        VOICEMAIL: "valid_voicemail"
+      };
+      return map[phoneType] || (phoneType ? `valid_${String(phoneType).toLowerCase()}` : "valid_unknown");
+    },
+
+    fallbackMexicoNumber(rawValue, defaultCountryCode, outputFormat, strictClassification = false) {
       const raw = String(rawValue ?? "");
       const candidates = [];
       const intlMatches = raw.matchAll(/\+?\s*52[\s\-‐-―()]*1?[\s\-‐-―()]*(\d[\d\s\-‐-―()]{8,}\d)/g);
@@ -131,15 +177,16 @@
         "清洗后号码": formatted,
         "状态": "有效(MX)",
         "检测国家": "MX",
-        "号码类型": "FIXED_LINE_OR_MOBILE"
+        "号码类型": this.classifyPhoneType("FIXED_LINE_OR_MOBILE", strictClassification)
       };
     },
 
     _scoreResult(r) {
       if (!String(r["状态"] || "").startsWith("有效")) return 0;
       const t = r["号码类型"] || "";
-      if (["MOBILE", "FIXED_LINE_OR_MOBILE"].includes(t)) return 4;
-      if (t === "FIXED_LINE") return 3;
+      if (["MOBILE", "valid_mobile"].includes(t)) return 4;
+      if (["FIXED_LINE", "valid_fixed_line"].includes(t)) return 3;
+      if (["FIXED_LINE_OR_MOBILE", "valid_ambiguous"].includes(t)) return 2;
       if (t) return 2;
       return 1;
     },
@@ -215,7 +262,14 @@
     },
 
     cleanOne(rawValue, opts = {}) {
-      const { defaultCountryCode = "", defaultCountryISO = "", typeFilter = "all", outputFormat = "E164" } = opts;
+      const {
+        defaultCountryCode = "",
+        defaultCountryISO = "",
+        typeFilter = "all",
+        outputFormat = "E164",
+        classificationMode = "loose"
+      } = opts;
+      const strictClassification = classificationMode === "strict";
 
       const candidates = this.extractPhoneCandidatesFromRaw(rawValue);
       if (candidates.length > 1) {
@@ -234,7 +288,7 @@
       }
 
       const original = candidates[0] || "";
-      const empty = { "原始号码": original, "清洗后号码": "", "检测国家": "", "号码类型": "" };
+      const empty = { "原始号码": original, "清洗后号码": "", "检测国家": "", "号码类型": strictClassification ? "invalid" : "" };
 
       const { str: preprocessed, withPlus, badFormat } = this.preprocess(original, defaultCountryCode);
       if (badFormat) {
@@ -267,7 +321,7 @@
         if (rawDigits && !rawDigits.startsWith("0")) {
           try {
             const p = parseFn("+" + rawDigits);
-            const accept = (pp) => defaultCountryISO === "NG" ? pp.isValid() : (pp.isValid() || pp.isPossible());
+            const accept = (pp) => (strictClassification || defaultCountryISO === "NG") ? pp.isValid() : (pp.isValid() || pp.isPossible());
             if (p && accept(p)) parsed = p;
           } catch (_) {}
         }
@@ -277,7 +331,7 @@
         const attemptStr = withPlus ? preprocessed : "+" + preprocessed;
         try {
           const p = parseFn(attemptStr);
-          const accept = (pp) => defaultCountryISO === "NG" ? pp.isValid() : (pp.isValid() || pp.isPossible());
+          const accept = (pp) => (strictClassification || defaultCountryISO === "NG") ? pp.isValid() : (pp.isValid() || pp.isPossible());
           if (p && accept(p)) parsed = p;
         } catch (_) {}
       }
@@ -285,13 +339,13 @@
       if (!parsed && defaultCountryISO) {
         try {
           const p = parseFn(preprocessed, defaultCountryISO);
-          const accept = (pp) => defaultCountryISO === "NG" ? pp.isValid() : (pp.isValid() || pp.isPossible());
+          const accept = (pp) => (strictClassification || defaultCountryISO === "NG") ? pp.isValid() : (pp.isValid() || pp.isPossible());
           if (p && accept(p)) parsed = p;
         } catch (_) {}
       }
 
       if (!parsed) {
-        const mxFallback = this.fallbackMexicoNumber(original, defaultCountryCode, outputFormat);
+        const mxFallback = this.fallbackMexicoNumber(original, defaultCountryCode, outputFormat, strictClassification);
         if (mxFallback) return mxFallback;
         return { ...empty, "状态": "无效-号段不符" };
       }
@@ -299,21 +353,21 @@
       const phoneType = parsed.getType() || "";
       const countryISO = parsed.country || "";
       if (countryISO === "MX" && !phoneType) {
-        const mxFallback = this.fallbackMexicoNumber(original, defaultCountryCode, outputFormat);
+        const mxFallback = this.fallbackMexicoNumber(original, defaultCountryCode, outputFormat, strictClassification);
         if (mxFallback) return mxFallback;
       }
 
-      const isMobile = ["MOBILE", "FIXED_LINE_OR_MOBILE"].includes(phoneType);
-      const isFixed = ["FIXED_LINE", "FIXED_LINE_OR_MOBILE"].includes(phoneType);
+      const isMobile = strictClassification ? phoneType === "MOBILE" : ["MOBILE", "FIXED_LINE_OR_MOBILE"].includes(phoneType);
+      const isFixed = strictClassification ? phoneType === "FIXED_LINE" : ["FIXED_LINE", "FIXED_LINE_OR_MOBILE"].includes(phoneType);
 
       if (typeFilter === "mobile" && !isMobile) {
-        return { ...empty, "状态": `无效-非手机号(${phoneType || "未知"})`, "检测国家": countryISO, "号码类型": phoneType };
+        return { ...empty, "状态": `无效-非手机号(${phoneType || "未知"})`, "检测国家": countryISO, "号码类型": this.classifyPhoneType(phoneType, strictClassification) };
       }
       if (typeFilter === "fixed" && !isFixed) {
-        return { ...empty, "状态": `无效-非固话(${phoneType || "未知"})`, "检测国家": countryISO, "号码类型": phoneType };
+        return { ...empty, "状态": `无效-非固话(${phoneType || "未知"})`, "检测国家": countryISO, "号码类型": this.classifyPhoneType(phoneType, strictClassification) };
       }
       if (typeFilter === "mobile_and_fixed" && !isMobile && !isFixed) {
-        return { ...empty, "状态": `无效-非手机/固话(${phoneType || "未知"})`, "检测国家": countryISO, "号码类型": phoneType };
+        return { ...empty, "状态": `无效-非手机/固话(${phoneType || "未知"})`, "检测国家": countryISO, "号码类型": this.classifyPhoneType(phoneType, strictClassification) };
       }
 
       const formatted = this.formatNumber(parsed, outputFormat);
@@ -323,7 +377,7 @@
         "清洗后号码": formatted,
         "状态": `有效(${countryISO})`,
         "检测国家": countryISO,
-        "号码类型": phoneType
+        "号码类型": this.classifyPhoneType(phoneType, strictClassification)
       };
     }
   };
@@ -332,7 +386,7 @@
     isValidMobileOrLandline(cleaned) {
       const status = String(cleaned?.["状态"] || "");
       const phoneType = String(cleaned?.["号码类型"] || "").trim();
-      return status.startsWith("有效") && ["MOBILE", "FIXED_LINE", "FIXED_LINE_OR_MOBILE"].includes(phoneType);
+      return status.startsWith("有效") && ["MOBILE", "FIXED_LINE", "FIXED_LINE_OR_MOBILE", "valid_mobile", "valid_fixed_line", "valid_ambiguous"].includes(phoneType);
     },
 
     buildStatsRow(stats) {
@@ -502,7 +556,7 @@
     },
 
     buildWaCandidateRows(rows, countryISO) {
-      const allowedTypes = new Set(["MOBILE", "FIXED_LINE_OR_MOBILE"]);
+      const allowedTypes = new Set(["MOBILE", "FIXED_LINE_OR_MOBILE", "valid_mobile"]);
       const seen = new Set();
       const result = [];
 
